@@ -13,9 +13,57 @@ unless tested.
 
 ## Installation
 
-### Building from Source
+### RPM (Fedora 43)
 
-Currently, no binary builds are provided.
+Pre-built RPMs for x86_64 and aarch64 are available from the
+[GitHub Releases](https://github.com/linuxnow/arexibo/releases) page,
+or from the RPM repository:
+
+```bash
+# Add the repository
+sudo tee /etc/yum.repos.d/arexibo.repo <<'EOF'
+[arexibo]
+name=Arexibo
+baseurl=https://linuxnow.github.io/arexibo/rpm/fedora/43/$basearch/
+enabled=1
+gpgcheck=0
+EOF
+
+# Install
+sudo dnf install arexibo
+```
+
+Or install directly from a downloaded RPM:
+
+```bash
+sudo dnf install ./arexibo-*.rpm
+```
+
+### Disk Images (Kiosk)
+
+Ready-to-boot kiosk images are available from the
+[GitHub Releases](https://github.com/linuxnow/arexibo/releases) page:
+
+- **QCOW2** (x86_64): For VMs (GNOME Boxes, virt-manager, QEMU)
+- **Raw.xz** (x86_64 / aarch64): For flashing to physical hardware
+
+Default credentials: `root` / `root`, `xibo` / `xibo`
+
+> **Change passwords after first login!**
+
+```bash
+# Test in QEMU
+qemu-system-x86_64 -enable-kvm -m 2G -drive file=arexibo-kiosk_*_x86_64.qcow2
+
+# Flash to hardware (use raw.xz)
+xz -dc arexibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress
+```
+
+Or use [Balena Etcher](https://etcher.balena.io/) which handles `.xz` files
+automatically. After booting, a setup wizard will configure your Xibo CMS
+connection.
+
+### Building from Source
 
 To build from source, you need:
 
