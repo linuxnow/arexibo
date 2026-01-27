@@ -1,0 +1,30 @@
+# Arexibo Digital Signage Player - systemd user unit
+
+[Unit]
+Description=Arexibo Digital Signage Player
+After=graphical-session.target
+Requisite=graphical-session.target
+StartLimitBurst=20
+StartLimitIntervalSec=300
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/arexibo --allow-offline %h/.local/share/arexibo
+ExecStartPre=/bin/sh -c '[ -f %h/.local/share/arexibo/cms.json ]'
+Restart=on-failure
+RestartSec=5s
+
+# Resource limits
+MemoryMax=1536M
+MemoryHigh=1G
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=arexibo
+
+# Environment (imported by kiosk script)
+# WAYLAND_DISPLAY, XDG_RUNTIME_DIR come from import-environment
+
+[Install]
+WantedBy=graphical-session.target

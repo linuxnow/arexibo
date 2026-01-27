@@ -1,0 +1,13 @@
+[Unit]
+Description=Arexibo First Boot Setup
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/var/lib/arexibo-firstboot-done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/arexibo-firstboot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

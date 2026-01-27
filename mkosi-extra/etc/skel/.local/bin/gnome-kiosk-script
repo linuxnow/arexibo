@@ -1,0 +1,8 @@
+#!/bin/bash
+AREXIBO_KIOSK_DIR="${AREXIBO_KIOSK_DIR:-/usr/share/arexibo/kiosk}"
+AREXIBO_DATA_DIR="${AREXIBO_DATA_DIR:-${HOME}/.local/share/arexibo}"
+if [ -f "${AREXIBO_DATA_DIR}/cms.json" ]; then
+    exec "${AREXIBO_KIOSK_DIR}/gnome-kiosk-script.arexibo.sh"
+else
+    exec "${AREXIBO_KIOSK_DIR}/gnome-kiosk-script.zenity.init.sh"
+fi

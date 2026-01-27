@@ -1,0 +1,6 @@
+[Unit]
+Description=Update arexibo package
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/dnf update -y arexibo

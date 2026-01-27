@@ -1,0 +1,5 @@
+[arexibo]
+name=Arexibo Digital Signage Player
+baseurl=https://linuxnow.github.io/arexibo/rpm/fedora/$releasever/$basearch/
+enabled=1
+gpgcheck=0

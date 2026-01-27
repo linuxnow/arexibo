@@ -1,0 +1,256 @@
+name: Build RPMs
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 0.3.1 or 0.3.1-2)'
+        required: false
+        default: '0.3.1'
+
+jobs:
+  build-rpm-x86_64:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+      release: ${{ steps.version.outputs.RELEASE }}
+      tag: ${{ steps.version.outputs.TAG }}
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            git \
+            rust cargo \
+            cmake gcc-c++ \
+            dbus-devel zeromq-devel \
+            qt6-qtwebengine-devel \
+            rpm-build rpmdevtools
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-x86_64-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            cargo-x86_64-
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/v}"
+          else
+            TAG="0.3.1"
+          fi
+          echo "VERSION=${TAG%%-*}" >> $GITHUB_OUTPUT
+          if [[ "$TAG" == *-* ]]; then
+            echo "RELEASE=${TAG#*-}" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASE=1" >> $GITHUB_OUTPUT
+          fi
+          echo "TAG=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Setup rpmbuild directories
+        run: mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+      - name: Create source tarball
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          mkdir -p arexibo-${VERSION}
+          cp -r * arexibo-${VERSION}/ 2>/dev/null || true
+          tar -czf ~/rpmbuild/SOURCES/arexibo-${VERSION}.tar.gz arexibo-${VERSION}
+          rm -rf arexibo-${VERSION}
+
+      - name: Copy spec file
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          RELEASE=${{ steps.version.outputs.RELEASE }}
+          sed -e "s/^Version:.*/Version:        ${VERSION}/" \
+              -e "s/^Release:.*/Release:        ${RELEASE}%{?dist}/" \
+              rpm/arexibo.spec > ~/rpmbuild/SPECS/arexibo.spec
+
+      - name: Build RPM
+        run: rpmbuild -bb ~/rpmbuild/SPECS/arexibo.spec
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+
+      - name: List built RPMs
+        run: find ~/rpmbuild/RPMS -name "*.rpm" -ls
+
+      - name: Upload RPM
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpms-x86_64
+          path: ~/rpmbuild/RPMS/**/*.rpm
+          retention-days: 30
+
+  build-rpm-aarch64:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: fedora:43
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            git \
+            rust cargo \
+            cmake gcc-c++ \
+            dbus-devel zeromq-devel \
+            qt6-qtwebengine-devel \
+            rpm-build rpmdevtools
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-aarch64-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            cargo-aarch64-
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/v}"
+          else
+            TAG="0.3.1"
+          fi
+          echo "VERSION=${TAG%%-*}" >> $GITHUB_OUTPUT
+          if [[ "$TAG" == *-* ]]; then
+            echo "RELEASE=${TAG#*-}" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASE=1" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup rpmbuild directories
+        run: mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+      - name: Create source tarball
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          mkdir -p arexibo-${VERSION}
+          cp -r * arexibo-${VERSION}/ 2>/dev/null || true
+          tar -czf ~/rpmbuild/SOURCES/arexibo-${VERSION}.tar.gz arexibo-${VERSION}
+          rm -rf arexibo-${VERSION}
+
+      - name: Copy spec file
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          RELEASE=${{ steps.version.outputs.RELEASE }}
+          sed -e "s/^Version:.*/Version:        ${VERSION}/" \
+              -e "s/^Release:.*/Release:        ${RELEASE}%{?dist}/" \
+              rpm/arexibo.spec > ~/rpmbuild/SPECS/arexibo.spec
+
+      - name: Build RPM
+        run: rpmbuild -bb ~/rpmbuild/SPECS/arexibo.spec
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+
+      - name: List built RPMs
+        run: find ~/rpmbuild/RPMS -name "*.rpm" -ls
+
+      - name: Upload RPM
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpms-aarch64
+          path: ~/rpmbuild/RPMS/**/*.rpm
+          retention-days: 30
+
+  publish-repo:
+    needs: [build-rpm-x86_64, build-rpm-aarch64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download RPM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: rpms
+          pattern: rpms-*
+          merge-multiple: true
+
+      - name: Flatten RPM directory
+        run: |
+          mkdir -p flat-rpms
+          find rpms -name "*.rpm" -exec mv {} flat-rpms/ \;
+          ls -la flat-rpms/
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+          fetch-depth: 1
+        continue-on-error: true
+
+      - name: Initialize gh-pages if needed
+        run: |
+          if [ ! -d gh-pages/.git ]; then
+            mkdir -p gh-pages
+            cd gh-pages
+            git init
+            git checkout -b gh-pages
+          fi
+
+      - name: Install createrepo
+        run: sudo apt-get update && sudo apt-get install -y createrepo-c
+
+      - name: Publish RPMs to repo
+        run: |
+          mkdir -p gh-pages/rpm/fedora/43/x86_64
+          mkdir -p gh-pages/rpm/fedora/43/aarch64
+
+          for rpm in flat-rpms/*.rpm; do
+            case "$rpm" in
+              *.x86_64.rpm) cp "$rpm" gh-pages/rpm/fedora/43/x86_64/ ;;
+              *.aarch64.rpm) cp "$rpm" gh-pages/rpm/fedora/43/aarch64/ ;;
+              *.noarch.rpm) cp "$rpm" gh-pages/rpm/fedora/43/x86_64/
+                            cp "$rpm" gh-pages/rpm/fedora/43/aarch64/ ;;
+            esac
+          done
+
+          createrepo_c --update gh-pages/rpm/fedora/43/x86_64/
+          createrepo_c --update gh-pages/rpm/fedora/43/aarch64/
+
+          ls -laR gh-pages/rpm/
+
+      - name: Push to gh-pages
+        run: |
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "Update RPM repository"
+          git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,5 @@
+enable arexibo-firstboot.service
+enable arexibo-update.timer
+enable gdm.service
+enable avahi-daemon.service
+enable systemd-repart.service

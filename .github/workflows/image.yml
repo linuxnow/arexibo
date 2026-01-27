@@ -1,0 +1,352 @@
+name: Build Images
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Image version (e.g., 0.3.1)'
+        required: true
+        default: '0.3.1'
+
+jobs:
+  build-image-x86_64:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+      options: --privileged
+
+    steps:
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            git \
+            mkosi \
+            systemd-container \
+            qemu-img \
+            xz
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set file permissions
+        run: |
+          chmod 755 mkosi-extra/usr/local/bin/*.sh
+          chmod 600 mkosi-extra/etc/doas.conf
+
+      - name: Build image
+        run: mkosi --force --profile=x86_64 --image-version=${{ github.event.inputs.version }}
+
+      - name: Install third-party packages
+        run: |
+          set -euo pipefail
+          RAW=$(ls output/*.raw | head -n1)
+          echo "Using image: $RAW"
+
+          # Attach and scan partitions (creates /dev/loopXpY)
+          LOOP=$(losetup --find --show --partscan "$RAW")
+          echo "Loop device: $LOOP"
+          sleep 1
+
+          # List partitions for debugging
+          echo "Partitions created for $LOOP:"
+          ls -l "${LOOP}"* || true
+          lsblk -o NAME,SIZE,FSTYPE,TYPE,MOUNTPOINT "${LOOP}"
+
+          # Pick a candidate partition to mount (last partition by name)
+          PART=$(ls "${LOOP}"p* 2>/dev/null | tail -n1 || true)
+          if [ -z "$PART" ]; then
+            echo "No partition device found for $LOOP. Trying kpartx fallback."
+            dnf install -y kpartx || true
+            kpartx -av "$RAW"
+            PART=$(ls /dev/mapper/loop*p* 2>/dev/null | tail -n1 || true)
+          fi
+
+          if [ -z "$PART" ]; then
+            echo "ERROR: no partition device found. Dumping partition table:"
+            fdisk -l "$RAW" || true
+            sfdisk -d "$RAW" || true
+            losetup -d "$LOOP" || true
+            exit 1
+          fi
+
+          echo "Attempting to mount partition: $PART"
+          blkid "$PART" || file -s "$PART" || true
+
+          # If the partition is an LVM PV, activate VGs and find logical volumes
+          if blkid -o value -s TYPE "$PART" | grep -iq lvm; then
+            echo "Detected LVM on partition $PART — activating volume groups"
+            pvscan || true
+            vgscan || true
+            vgchange -ay || true
+            LV=$(lvs --noheadings -o lv_path 2>/dev/null | head -n1 || true)
+            if [ -n "$LV" ]; then
+              echo "Mounting LV $LV"
+              mkdir -p /mnt/image
+              mount "$LV" /mnt/image
+            else
+              echo "No LV found after vgchange -ay; listing block devices:"
+              lsblk -o NAME,SIZE,FSTYPE,TYPE,MOUNTPOINT
+              losetup -d "$LOOP" || true
+              exit 1
+            fi
+          else
+            mkdir -p /mnt/image
+            if ! mount "$PART" /mnt/image; then
+              echo "Mount failed; dumping diagnostics:"
+              dmesg | tail -n 50
+              blkid "$PART" || true
+              losetup -d "$LOOP" || true
+              exit 1
+            fi
+          fi
+
+          echo "Mounted /mnt/image — running in-container script"
+          rm -f /mnt/image/etc/resolv.conf
+          cp /etc/resolv.conf /mnt/image/etc/resolv.conf
+          mount --bind /proc /mnt/image/proc
+          mount --bind /sys /mnt/image/sys
+          mount --bind /dev /mnt/image/dev
+          chroot /mnt/image /bin/bash < scripts/50-ffmpeg-swap.sh
+
+          echo "Cleaning up"
+          umount /mnt/image/proc /mnt/image/sys /mnt/image/dev || true
+          rm -f /mnt/image/etc/resolv.conf
+          ln -s ../run/systemd/resolve/stub-resolv.conf /mnt/image/etc/resolv.conf
+          umount /mnt/image || true
+          if command -v kpartx >/dev/null && ls /dev/mapper/loop*p* 2>/dev/null; then
+            kpartx -d "$RAW" || true
+          fi
+          losetup -d "$LOOP" || true
+
+      - name: Convert and compress images
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          cd output
+          mv *.raw arexibo-kiosk_${VERSION}_x86_64.raw
+          qemu-img convert -f raw -O qcow2 -c arexibo-kiosk_${VERSION}_x86_64.raw arexibo-kiosk_${VERSION}_x86_64.qcow2
+          qemu-img resize arexibo-kiosk_${VERSION}_x86_64.qcow2 16G
+          xz -T0 -9 arexibo-kiosk_${VERSION}_x86_64.raw
+
+      - name: List output
+        run: ls -lah output/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-x86_64
+          path: |
+            output/*.qcow2
+            output/*.raw.xz
+          retention-days: 30
+
+  build-image-aarch64:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: fedora:43
+      options: --privileged
+
+    steps:
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            git \
+            mkosi \
+            systemd-container \
+            xz
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set file permissions
+        run: |
+          chmod 755 mkosi-extra/usr/local/bin/*.sh
+          chmod 600 mkosi-extra/etc/doas.conf
+
+      - name: Build image
+        run: mkosi --force --profile=aarch64 --image-version=${{ github.event.inputs.version }}
+
+      - name: Install third-party packages
+        run: |
+          set -euo pipefail
+          RAW=$(ls output/*.raw | head -n1)
+          echo "Using image: $RAW"
+
+          # Attach and scan partitions (creates /dev/loopXpY)
+          LOOP=$(losetup --find --show --partscan "$RAW")
+          echo "Loop device: $LOOP"
+          sleep 1
+
+          # List partitions for debugging
+          echo "Partitions created for $LOOP:"
+          ls -l "${LOOP}"* || true
+          lsblk -o NAME,SIZE,FSTYPE,TYPE,MOUNTPOINT "${LOOP}"
+
+          # Pick a candidate partition to mount (last partition by name)
+          PART=$(ls "${LOOP}"p* 2>/dev/null | tail -n1 || true)
+          if [ -z "$PART" ]; then
+            echo "No partition device found for $LOOP. Trying kpartx fallback."
+            dnf install -y kpartx || true
+            kpartx -av "$RAW"
+            PART=$(ls /dev/mapper/loop*p* 2>/dev/null | tail -n1 || true)
+          fi
+
+          if [ -z "$PART" ]; then
+            echo "ERROR: no partition device found. Dumping partition table:"
+            fdisk -l "$RAW" || true
+            sfdisk -d "$RAW" || true
+            losetup -d "$LOOP" || true
+            exit 1
+          fi
+
+          echo "Attempting to mount partition: $PART"
+          blkid "$PART" || file -s "$PART" || true
+
+          # If the partition is an LVM PV, activate VGs and find logical volumes
+          if blkid -o value -s TYPE "$PART" | grep -iq lvm; then
+            echo "Detected LVM on partition $PART — activating volume groups"
+            pvscan || true
+            vgscan || true
+            vgchange -ay || true
+            LV=$(lvs --noheadings -o lv_path 2>/dev/null | head -n1 || true)
+            if [ -n "$LV" ]; then
+              echo "Mounting LV $LV"
+              mkdir -p /mnt/image
+              mount "$LV" /mnt/image
+            else
+              echo "No LV found after vgchange -ay; listing block devices:"
+              lsblk -o NAME,SIZE,FSTYPE,TYPE,MOUNTPOINT
+              losetup -d "$LOOP" || true
+              exit 1
+            fi
+          else
+            mkdir -p /mnt/image
+            if ! mount "$PART" /mnt/image; then
+              echo "Mount failed; dumping diagnostics:"
+              dmesg | tail -n 50
+              blkid "$PART" || true
+              losetup -d "$LOOP" || true
+              exit 1
+            fi
+          fi
+
+          echo "Mounted /mnt/image — running in-container script"
+          rm -f /mnt/image/etc/resolv.conf
+          cp /etc/resolv.conf /mnt/image/etc/resolv.conf
+          mount --bind /proc /mnt/image/proc
+          mount --bind /sys /mnt/image/sys
+          mount --bind /dev /mnt/image/dev
+          chroot /mnt/image /bin/bash < scripts/50-ffmpeg-swap.sh
+
+          echo "Cleaning up"
+          umount /mnt/image/proc /mnt/image/sys /mnt/image/dev || true
+          rm -f /mnt/image/etc/resolv.conf
+          ln -s ../run/systemd/resolve/stub-resolv.conf /mnt/image/etc/resolv.conf
+          umount /mnt/image || true
+          if command -v kpartx >/dev/null && ls /dev/mapper/loop*p* 2>/dev/null; then
+            kpartx -d "$RAW" || true
+          fi
+          losetup -d "$LOOP" || true
+
+      - name: Rename with arch
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          cd output
+          mv arexibo-kiosk_${VERSION}.raw arexibo-kiosk_${VERSION}_aarch64.raw
+
+      - name: Compress image
+        run: |
+          cd output
+          xz -T0 -9 arexibo-kiosk_${{ github.event.inputs.version }}_aarch64.raw
+
+      - name: List output
+        run: ls -lah output/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-aarch64
+          path: output/*.raw.xz
+          retention-days: 30
+
+  release:
+    needs: [build-image-x86_64, build-image-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download image artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: images-*
+          merge-multiple: true
+
+      - name: Download RPMs from latest rpm.yml run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID=$(gh run list -R "${{ github.repository }}" -w rpm.yml -s success -L1 --json databaseId -q '.[0].databaseId')
+          if [ -z "$RUN_ID" ]; then
+            echo "ERROR: No successful rpm.yml run found"
+            exit 1
+          fi
+          echo "Downloading RPMs from run $RUN_ID"
+          gh run download "$RUN_ID" -R "${{ github.repository }}" -p 'rpms-*' -D artifacts/
+
+      - name: Flatten files
+        run: |
+          mkdir -p release
+          find artifacts -name "*.rpm" -exec mv {} release/ \;
+          find artifacts -name "*.qcow2" -exec mv {} release/ \;
+          find artifacts -name "*.raw.xz" -exec mv {} release/ \;
+          ls -la release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          files: release/*
+          draft: false
+          prerelease: false
+          body: |
+            ## Arexibo Kiosk
+
+            ### RPM Installation (Fedora 43)
+
+            Add the repository and install:
+
+            ```bash
+            sudo dnf copr enable linuxnow/arexibo  # or use the GitHub Pages repo
+            sudo dnf install arexibo
+            ```
+
+            Or install directly from the RPM:
+
+            ```bash
+            sudo dnf install ./arexibo-*.rpm
+            ```
+
+            ### Disk Images
+
+            - **QCOW2** (x86_64): For VMs (GNOME Boxes, virt-manager, QEMU)
+            - **Raw.xz** (x86_64 / aarch64): For flashing to physical hardware
+
+            Default credentials: `root` / `root`, `xibo` / `xibo`
+            ⚠️ **Change passwords after first login!**
+
+            ```bash
+            # Test in QEMU
+            qemu-system-x86_64 -enable-kvm -m 2G -drive file=arexibo-kiosk_*_x86_64.qcow2
+
+            # Flash to hardware
+            xz -d arexibo-kiosk_*_x86_64.raw.xz
+            sudo dd if=arexibo-kiosk_*_x86_64.raw of=/dev/sdX bs=4M status=progress
+            ```
+
+            After booting, a setup wizard will configure your Xibo CMS connection.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
