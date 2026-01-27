@@ -343,8 +343,7 @@ jobs:
             qemu-system-x86_64 -enable-kvm -m 2G -drive file=arexibo-kiosk_*_x86_64.qcow2
 
             # Flash to hardware
-            xz -d arexibo-kiosk_*_x86_64.raw.xz
-            sudo dd if=arexibo-kiosk_*_x86_64.raw of=/dev/sdX bs=4M status=progress
+            xz -dc arexibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress
             ```
 
             After booting, a setup wizard will configure your Xibo CMS connection.
