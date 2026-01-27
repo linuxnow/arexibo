@@ -1,3 +1,5 @@
 /target
 /env*
 /gui/build
+result
+/debug/

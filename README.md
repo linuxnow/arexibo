@@ -13,6 +13,8 @@ unless tested.
 
 ## Installation
 
+### Building from Source
+
 Currently, no binary builds are provided.
 
 To build from source, you need:
@@ -53,6 +55,72 @@ that RHEL/Fedora don't include in their packages, e.g. from rpmfusion.org.
 For RHEL derived distributions, install `cmake gcc-c++ cargo dbus-devel
 zeromq-devel qt6-qtwebengine-devel`.  For Debian derived, install `cmake g++
 cargo libdbus-1-dev libzmq3-dev qt6-webengine-dev`.
+
+### Using Nix/NixOS
+
+A Nix flake is provided for easy building and installation:
+
+```bash
+# Build the package
+nix build
+
+# Run directly
+nix run
+
+# Enter development shell with all dependencies
+nix develop
+
+# Install to profile
+nix profile install
+```
+
+#### NixOS Module
+
+A NixOS module is included for declarative configuration with systemd integration.
+
+Add arexibo as a flake input and enable the module:
+
+```nix
+{
+  inputs.arexibo.url = "github:linuxnow/arexibo";
+
+  outputs = { nixpkgs, arexibo, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      modules = [
+        arexibo.nixosModules.default
+        {
+          services.arexibo = {
+            enable = true;
+            host = "https://your-cms.example.com/";
+            keyFile = "/run/secrets/arexibo-key";  # or key = "your-key";
+            # displayName = "Lobby Display";
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
+**Key options:**
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `enable` | bool | Enable the Arexibo service |
+| `host` | string | CMS server URL (required) |
+| `key` | string | Display key (mutually exclusive with `keyFile`) |
+| `keyFile` | path | Path to file containing the key (for sops-nix/agenix) |
+| `displayId` | string | Custom display ID (auto-generated if unset) |
+| `displayName` | string | Initial display name |
+| `dataDir` | path | Data directory (default: `/var/lib/arexibo`) |
+| `xserver.enable` | bool | Run with a dedicated X server instance |
+
+For secrets management, prefer `keyFile` over `key` so the key stays out of
+the Nix store. This integrates with sops-nix or agenix:
+
+```nix
+services.arexibo.keyFile = config.sops.secrets.arexibo-key.path;
+```
 
 
 ## Usage
