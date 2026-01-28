@@ -39,6 +39,27 @@ Or install directly from a downloaded RPM:
 sudo dnf install ./arexibo-*.rpm
 ```
 
+### Installer ISO (Recommended for physical hardware)
+
+A bootable installer ISO is available from the
+[GitHub Releases](https://github.com/linuxnow/arexibo/releases) page.
+This performs an automated Fedora 43 installation with arexibo pre-configured.
+
+```bash
+# Flash ISO to USB
+sudo dd if=arexibo-kiosk-installer_*_x86_64.iso of=/dev/sdX bs=8M status=progress
+
+# Or use Balena Etcher
+```
+
+Alternatively, use any Fedora 43 netinstall ISO with the kickstart URL:
+
+```bash
+# At boot menu, press 'e' to edit and add to the linux line:
+inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/arexibo-kiosk.ks
+# Then press Ctrl+X to boot
+```
+
 ### Disk Images (Kiosk)
 
 Ready-to-boot kiosk images are available from the
@@ -47,7 +68,7 @@ Ready-to-boot kiosk images are available from the
 - **QCOW2** (x86_64): For VMs (GNOME Boxes, virt-manager, QEMU)
 - **Raw.xz** (x86_64 / aarch64): For flashing to physical hardware
 
-Default credentials: `root` / `root`, `xibo` / `xibo`
+Default credentials: `xibo` / `xibo`
 
 > **Change passwords after first login!**
 

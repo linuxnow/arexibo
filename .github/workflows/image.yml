@@ -109,8 +109,41 @@ jobs:
           path: output/*.raw.xz
           retention-days: 30
 
+  build-installer-iso:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:43
+      options: --privileged
+
+    steps:
+      - name: Install dependencies
+        run: dnf install -y lorax pykickstart curl
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Fedora netinstall ISO
+        run: |
+          curl -L -o /tmp/fedora-netinst.iso \
+            "https://ftp.plusline.net/fedora/linux/releases/43/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-43-1.6.iso"
+
+      - name: Build installer ISO
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          mkksiso --skip-mkefiboot --ks kickstart/arexibo-kiosk.ks \
+            /tmp/fedora-netinst.iso \
+            arexibo-kiosk-installer_${VERSION}_x86_64.iso
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-iso
+          path: "*.iso"
+          retention-days: 30
+
   release:
-    needs: [build-image-x86_64, build-image-aarch64]
+    needs: [build-image-x86_64, build-image-aarch64, build-installer-iso]
     runs-on: ubuntu-latest
 
     steps:
@@ -120,6 +153,12 @@ jobs:
           path: artifacts
           pattern: images-*
           merge-multiple: true
+
+      - name: Download installer ISO
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          name: installer-iso
 
       - name: Download RPMs from latest rpm.yml run
         env:
@@ -139,6 +178,7 @@ jobs:
           find artifacts -name "*.rpm" -exec mv {} release/ \;
           find artifacts -name "*.qcow2" -exec mv {} release/ \;
           find artifacts -name "*.raw.xz" -exec mv {} release/ \;
+          find artifacts -name "*.iso" -exec mv {} release/ \;
           ls -la release/
 
       - name: Create Release
@@ -149,38 +189,63 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## Arexibo Kiosk
+            ## Arexibo Kiosk v${{ github.event.inputs.version }}
 
-            ### RPM Installation (Fedora 43)
+            ### Installation Methods
 
-            Add the repository and install:
+            #### 1. Installer ISO (Recommended for physical hardware)
+
+            Boot from USB and install automatically:
 
             ```bash
-            sudo dnf copr enable linuxnow/arexibo  # or use the GitHub Pages repo
-            sudo dnf install arexibo
+            # Flash ISO to USB
+            sudo dd if=arexibo-kiosk-installer_*_x86_64.iso of=/dev/sdX bs=8M status=progress
             ```
 
-            Or install directly from the RPM:
-
-            ```bash
-            sudo dnf install ./arexibo-*.rpm
+            Or use a stock Fedora netinstall ISO with kickstart URL:
+            ```
+            # At boot, press 'e' and add to kernel cmdline:
+            inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/arexibo-kiosk.ks
             ```
 
-            ### Disk Images
+            #### 2. Disk Images (Flash directly)
 
-            - **QCOW2** (x86_64): For VMs (GNOME Boxes, virt-manager, QEMU)
-            - **Raw.xz** (x86_64 / aarch64): For flashing to physical hardware
-
-            Default credentials: `root` / `root`, `xibo` / `xibo`
-            ⚠️ **Change passwords after first login!**
+            - **Raw.xz** (x86_64 / aarch64): For Balena Etcher or dd
 
             ```bash
-            # Test in QEMU
-            qemu-system-x86_64 -enable-kvm -m 2G -drive file=arexibo-kiosk_*_x86_64.qcow2
-
-            # Flash to hardware
             xz -dc arexibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress
             ```
+
+            #### 3. VM Image
+
+            - **QCOW2** (x86_64): For GNOME Boxes, virt-manager, QEMU
+
+            ```bash
+            qemu-system-x86_64 -enable-kvm -m 2G -drive file=arexibo-kiosk_*_x86_64.qcow2
+            ```
+
+            #### 4. RPM Installation (existing Fedora 43)
+
+            ```bash
+            # Add repository
+            sudo tee /etc/yum.repos.d/arexibo.repo <<'EOF'
+            [arexibo]
+            name=Arexibo
+            baseurl=https://linuxnow.github.io/arexibo/rpm/fedora/43/$basearch/
+            enabled=1
+            gpgcheck=0
+            EOF
+
+            # Install
+            sudo dnf install arexibo arexibo-kiosk
+            ```
+
+            ### Default Credentials
+
+            - `xibo` / `xibo` (kiosk user)
+            - `root` / `root` (locked by default on installer ISO)
+
+            ⚠️ **Change passwords after first login!**
 
             After booting, a setup wizard will configure your Xibo CMS connection.
         env:

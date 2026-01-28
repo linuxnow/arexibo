@@ -78,8 +78,6 @@ NetworkManager-wifi
 # Remove unnecessary packages
 -gnome-initial-setup
 -gnome-tour
--gnome-shell
--gnome-session
 %end
 
 # RPMFusion repositories
