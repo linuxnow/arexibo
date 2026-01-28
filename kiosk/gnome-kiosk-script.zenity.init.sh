@@ -107,7 +107,7 @@ EOF
         sleep 5
 
         if systemctl --user is-active --quiet arexibo-player.service; then
-            notify-send -r 1 -t 0 "Arexibo" "IP: $IP — Connected to CMS" 2>/dev/null || true
+            notify-send -r 1 -t 5000 "Arexibo" "IP: $IP — Connected to CMS" 2>/dev/null || true
 
             zenity --info \
                 --title="Arexibo Setup Complete" \
