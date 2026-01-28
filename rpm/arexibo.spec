@@ -42,6 +42,9 @@ Requires:       dunst
 Requires:       unclutter
 Requires:       zenity
 Requires:       opendoas
+Requires:       keyd
+Requires:       mesa-va-drivers
+Requires:       libva
 Recommends:     libva-intel-driver
 
 %description    kiosk
@@ -58,6 +61,10 @@ install -Dm755 kiosk/gnome-kiosk-script.arexibo.sh %{buildroot}%{_datadir}/arexi
 install -Dm755 kiosk/gnome-kiosk-script.zenity.init.sh %{buildroot}%{_datadir}/arexibo/kiosk/gnome-kiosk-script.zenity.init.sh
 install -Dm644 kiosk/dunstrc %{buildroot}%{_datadir}/arexibo/kiosk/dunstrc
 install -Dm644 kiosk/arexibo-player.service %{buildroot}%{_userunitdir}/arexibo-player.service
+install -Dm755 kiosk/arexibo-keyd-run.sh %{buildroot}%{_datadir}/arexibo/kiosk/arexibo-keyd-run.sh
+install -Dm755 kiosk/arexibo-show-ip.sh %{buildroot}%{_datadir}/arexibo/kiosk/arexibo-show-ip.sh
+install -Dm755 kiosk/arexibo-show-cms.sh %{buildroot}%{_datadir}/arexibo/kiosk/arexibo-show-cms.sh
+install -Dm644 kiosk/keyd-arexibo.conf %{buildroot}%{_sysconfdir}/keyd/arexibo.conf
 
 %files
 %license LICENSE
@@ -70,7 +77,11 @@ install -Dm644 kiosk/arexibo-player.service %{buildroot}%{_userunitdir}/arexibo-
 %{_datadir}/arexibo/kiosk/gnome-kiosk-script.arexibo.sh
 %{_datadir}/arexibo/kiosk/gnome-kiosk-script.zenity.init.sh
 %{_datadir}/arexibo/kiosk/dunstrc
+%{_datadir}/arexibo/kiosk/arexibo-keyd-run.sh
+%{_datadir}/arexibo/kiosk/arexibo-show-ip.sh
+%{_datadir}/arexibo/kiosk/arexibo-show-cms.sh
 %{_userunitdir}/arexibo-player.service
+%{_sysconfdir}/keyd/arexibo.conf
 
 %changelog
 * Mon Jan 27 2026 Pau Aliagas <pau@linuxnow.com> - 0.3.1-2

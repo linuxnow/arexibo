@@ -196,6 +196,16 @@ services.arexibo.keyFile = config.sops.secrets.arexibo-key.path;
 ```
 
 
+## Kiosk Keyboard Shortcuts
+
+When running in kiosk mode, the following keyboard shortcuts are available
+(via [keyd](https://github.com/rvaiya/keyd)):
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+I` | Show IP address |
+| `Ctrl+R` | Show CMS server and display name |
+
 ## Usage
 
 Create a new directory where Arexibo can store configuration and media files.

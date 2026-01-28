@@ -12,37 +12,18 @@ NOTIFY_ID=1
 dunst -conf "${AREXIBO_KIOSK_DIR}/dunstrc" &
 unclutter --timeout 3 &
 
-# Create helper scripts for on-demand actions
-# Show status: /tmp/arexibo-show-ip.sh (or press F1 if keyd configured)
-cat > /tmp/arexibo-show-ip.sh << 'SHOWIP'
-#!/bin/bash
-AREXIBO_DATA_DIR="${AREXIBO_DATA_DIR:-${HOME}/.local/share/arexibo}"
-IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
-STATUS=$(systemctl --user is-active arexibo-player.service 2>/dev/null || echo "unknown")
-CMS=$(grep -oP '"address"\s*:\s*"\K[^"]+' "${AREXIBO_DATA_DIR}/cms.json" 2>/dev/null || echo "not configured")
-notify-send -t 5000 "Arexibo Status" "IP: $IP\nCMS: $CMS\nPlayer: $STATUS"
-SHOWIP
-chmod +x /tmp/arexibo-show-ip.sh
-
-# Reconfigure: /tmp/arexibo-reconfigure.sh (or press F12 if keyd configured)
-cat > /tmp/arexibo-reconfigure.sh << 'RECONF'
-#!/bin/bash
-AREXIBO_KIOSK_DIR="${AREXIBO_KIOSK_DIR:-/usr/share/arexibo/kiosk}"
-AREXIBO_DATA_DIR="${AREXIBO_DATA_DIR:-${HOME}/.local/share/arexibo}"
-if zenity --question --title="Arexibo" --text="Reconfigure CMS connection?\n\nThis will stop the player and start the setup wizard." --width=300 2>/dev/null; then
-    systemctl --user stop arexibo-player.service 2>/dev/null || true
-    rm -f "${AREXIBO_DATA_DIR}/cms.json"
-    pkill -u "$(whoami)" -f gnome-kiosk-script 2>/dev/null || true
-    exec "${AREXIBO_KIOSK_DIR}/gnome-kiosk-script.zenity.init.sh"
-fi
-RECONF
-chmod +x /tmp/arexibo-reconfigure.sh
-
 # Wait for compositor
 sleep 2
 
 # Import display environment into systemd user manager
 systemctl --user import-environment WAYLAND_DISPLAY DISPLAY XDG_RUNTIME_DIR
+
+# Disable screen blanking and power management
+gsettings set org.gnome.desktop.session idle-delay 0
+gsettings set org.gnome.desktop.screensaver lock-enabled false
+gsettings set org.gnome.settings-daemon.plugins.power idle-dim false
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'
 
 # Set audio volume (90%)
 wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.9 2>/dev/null || true

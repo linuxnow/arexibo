@@ -3,3 +3,4 @@ enable arexibo-update.timer
 enable gdm.service
 enable avahi-daemon.service
 enable systemd-repart.service
+enable keyd.service
