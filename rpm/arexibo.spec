@@ -42,6 +42,7 @@ Requires:       dunst
 Requires:       unclutter
 Requires:       zenity
 Requires:       opendoas
+Recommends:     libva-intel-driver
 
 %description    kiosk
 Kiosk session scripts for running Arexibo as a full-screen digital signage
