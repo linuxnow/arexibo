@@ -12,6 +12,32 @@ NOTIFY_ID=1
 dunst -conf "${AREXIBO_KIOSK_DIR}/dunstrc" &
 unclutter --timeout 3 &
 
+# Create helper scripts for on-demand actions
+# Show status: /tmp/arexibo-show-ip.sh (or press F1 if keyd configured)
+cat > /tmp/arexibo-show-ip.sh << 'SHOWIP'
+#!/bin/bash
+AREXIBO_DATA_DIR="${AREXIBO_DATA_DIR:-${HOME}/.local/share/arexibo}"
+IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "unknown")
+STATUS=$(systemctl --user is-active arexibo-player.service 2>/dev/null || echo "unknown")
+CMS=$(grep -oP '"address"\s*:\s*"\K[^"]+' "${AREXIBO_DATA_DIR}/cms.json" 2>/dev/null || echo "not configured")
+notify-send -t 5000 "Arexibo Status" "IP: $IP\nCMS: $CMS\nPlayer: $STATUS"
+SHOWIP
+chmod +x /tmp/arexibo-show-ip.sh
+
+# Reconfigure: /tmp/arexibo-reconfigure.sh (or press F12 if keyd configured)
+cat > /tmp/arexibo-reconfigure.sh << 'RECONF'
+#!/bin/bash
+AREXIBO_KIOSK_DIR="${AREXIBO_KIOSK_DIR:-/usr/share/arexibo/kiosk}"
+AREXIBO_DATA_DIR="${AREXIBO_DATA_DIR:-${HOME}/.local/share/arexibo}"
+if zenity --question --title="Arexibo" --text="Reconfigure CMS connection?\n\nThis will stop the player and start the setup wizard." --width=300 2>/dev/null; then
+    systemctl --user stop arexibo-player.service 2>/dev/null || true
+    rm -f "${AREXIBO_DATA_DIR}/cms.json"
+    pkill -u "$(whoami)" -f gnome-kiosk-script 2>/dev/null || true
+    exec "${AREXIBO_KIOSK_DIR}/gnome-kiosk-script.zenity.init.sh"
+fi
+RECONF
+chmod +x /tmp/arexibo-reconfigure.sh
+
 # Wait for compositor
 sleep 2
 
@@ -44,9 +70,13 @@ get_player_error() {
         | head -c 200
 }
 
-# Show initial status
+# Clear any lingering notifications from previous session/wizard
+dunstctl close-all 2>/dev/null || true
+
+# Show initial status briefly (5 seconds)
 IP=$(get_ip)
-status_notify "IP: $IP — Starting player..."
+CMS=$(grep -oP '"address"\s*:\s*"\K[^"]+' "${AREXIBO_DATA_DIR}/cms.json" 2>/dev/null || echo "not configured")
+notify-send -t 5000 "Arexibo" "IP: $IP\nCMS: $CMS\nStarting player..."
 
 # Start arexibo via systemd (handles restarts, resource limits, logging)
 if [ -f "${AREXIBO_DATA_DIR}/cms.json" ]; then
@@ -64,8 +94,8 @@ while true; do
 
     if systemctl --user is-active --quiet arexibo-player.service; then
         FAIL_COUNT=0
-        # Dismiss notification when connected — player is showing content
-        notify-send -r "$NOTIFY_ID" -t 1 "Arexibo" "" 2>/dev/null || true
+        # Close notification when connected — player is showing content
+        dunstctl close-all 2>/dev/null || notify-send -r "$NOTIFY_ID" -t 1 " " " " 2>/dev/null || true
     else
         # Check exit code: 2 = not authorized yet (transient), 1 = real error
         EXIT_CODE=$(systemctl --user show -p ExecMainStatus --value arexibo-player.service 2>/dev/null)
