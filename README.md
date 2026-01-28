@@ -20,13 +20,17 @@ Pre-built RPMs for x86_64 and aarch64 are available from the
 or from the RPM repository:
 
 ```bash
+# Import GPG key for package verification
+sudo rpm --import https://linuxnow.github.io/arexibo/rpm/RPM-GPG-KEY-arexibo
+
 # Add the repository
 sudo tee /etc/yum.repos.d/arexibo.repo <<'EOF'
 [arexibo]
 name=Arexibo
 baseurl=https://linuxnow.github.io/arexibo/rpm/fedora/43/$basearch/
 enabled=1
-gpgcheck=0
+gpgcheck=1
+gpgkey=https://linuxnow.github.io/arexibo/rpm/RPM-GPG-KEY-arexibo
 EOF
 
 # Install
@@ -74,7 +78,7 @@ Default credentials: `xibo` / `xibo`
 
 ```bash
 # Test in QEMU
-qemu-system-x86_64 -enable-kvm -m 2G -drive file=arexibo-kiosk_*_x86_64.qcow2
+qemu-system-x86_64 -enable-kvm -m 2G -nic user -drive file=arexibo-kiosk_*_x86_64.qcow2
 
 # Flash to hardware (use raw.xz)
 xz -dc arexibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress

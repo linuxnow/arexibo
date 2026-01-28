@@ -204,6 +204,38 @@ jobs:
           find rpms -name "*.rpm" -exec mv {} flat-rpms/ \;
           ls -la flat-rpms/
 
+      - name: Import GPG key and sign RPMs
+        env:
+          GPG_KEY: ${{ secrets.RPM_GPG_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.RPM_GPG_PASSPHRASE }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y rpm
+
+          # Import key
+          echo "$GPG_KEY" | gpg --batch --import
+
+          # Configure GPG for non-interactive use
+          mkdir -p ~/.gnupg
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent
+
+          # Configure rpmmacros for signing with passphrase
+          cat >> ~/.rpmmacros << 'EOF'
+          %_gpg_name 2062554CA28F97F35C61BA59FB0419E62480F38A
+          %__gpg_sign_cmd %{__gpg} gpg --batch --no-armor --no-secmem-warning --pinentry-mode loopback --passphrase-fd 3 -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}
+          EOF
+
+          # Sign all RPMs
+          for rpm in flat-rpms/*.rpm; do
+            echo "$GPG_PASSPHRASE" | rpm --addsign "$rpm" 3<&0
+          done
+
+          # Verify signatures
+          rpm -qpi flat-rpms/*.rpm | grep -E "^(Name|Signature)" || true
+
+          # Export public key for repo
+          gpg --export --armor 2062554CA28F97F35C61BA59FB0419E62480F38A > flat-rpms/RPM-GPG-KEY-arexibo
+
       - name: Checkout gh-pages branch
         uses: actions/checkout@v4
         with:
@@ -228,6 +260,9 @@ jobs:
         run: |
           mkdir -p gh-pages/rpm/fedora/43/x86_64
           mkdir -p gh-pages/rpm/fedora/43/aarch64
+
+          # Copy GPG key
+          cp flat-rpms/RPM-GPG-KEY-arexibo gh-pages/rpm/
 
           for rpm in flat-rpms/*.rpm; do
             case "$rpm" in
