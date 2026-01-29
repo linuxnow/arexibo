@@ -227,13 +227,17 @@ jobs:
             #### 4. RPM Installation (existing Fedora 43)
 
             ```bash
+            # Import GPG key for package verification
+            sudo rpm --import https://linuxnow.github.io/arexibo/rpm/RPM-GPG-KEY-arexibo
+
             # Add repository
             sudo tee /etc/yum.repos.d/arexibo.repo <<'EOF'
             [arexibo]
             name=Arexibo
             baseurl=https://linuxnow.github.io/arexibo/rpm/fedora/43/$basearch/
             enabled=1
-            gpgcheck=0
+            gpgcheck=1
+            gpgkey=https://linuxnow.github.io/arexibo/rpm/RPM-GPG-KEY-arexibo
             EOF
 
             # Install
