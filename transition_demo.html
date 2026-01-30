@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Arexibo Transition Demo</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+    .container {
+      width: 960px;
+      height: 540px;
+      margin: 20px;
+      position: relative;
+      overflow: hidden;
+      background: #333;
+      border: 2px solid #666;
+    }
+    .media {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      font-weight: bold;
+    }
+    .controls {
+      margin: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="margin: 20px;">Arexibo Transition Demo</h1>
+
+  <div class="container" id="container"></div>
+
+  <div class="controls">
+    <h3>Test Transitions:</h3>
+    <button onclick="testFadeIn()">Fade In</button>
+    <button onclick="testFadeOut()">Fade Out</button>
+    <button onclick="testFlyIn('N')">Fly In (N)</button>
+    <button onclick="testFlyIn('E')">Fly In (E)</button>
+    <button onclick="testFlyOut('S')">Fly Out (S)</button>
+    <button onclick="testFlyOut('W')">Fly Out (W)</button>
+    <button onclick="reset()">Reset</button>
+  </div>
+
+  <script>
+    // Copy of arexibo transition utilities
+    window.arexibo = {
+      transitions: {
+        fadeIn: function(element, duration) {
+          element.style.opacity = '0';
+          element.style.transition = 'opacity ' + (duration / 1000) + 's linear';
+          setTimeout(function() { element.style.opacity = '1'; }, 10);
+        },
+
+        fadeOut: function(element, duration, callback) {
+          element.style.transition = 'opacity ' + (duration / 1000) + 's linear';
+          element.style.opacity = '0';
+          setTimeout(callback || function(){}, duration);
+        },
+
+        flyIn: function(element, duration, direction, regionWidth, regionHeight) {
+          var offsets = {
+            'N': { x: 0, y: -regionHeight }, 'NE': { x: regionWidth, y: -regionHeight },
+            'E': { x: regionWidth, y: 0 }, 'SE': { x: regionWidth, y: regionHeight },
+            'S': { x: 0, y: regionHeight }, 'SW': { x: -regionWidth, y: regionHeight },
+            'W': { x: -regionWidth, y: 0 }, 'NW': { x: -regionWidth, y: -regionHeight }
+          };
+          var offset = offsets[direction] || offsets['N'];
+          element.style.transform = 'translate(' + offset.x + 'px, ' + offset.y + 'px)';
+          element.style.opacity = '0';
+          element.style.transition = 'transform ' + (duration / 1000) + 's ease-out, opacity ' + (duration / 1000) + 's ease-out';
+          setTimeout(function() {
+            element.style.transform = 'translate(0, 0)';
+            element.style.opacity = '1';
+          }, 10);
+        },
+
+        flyOut: function(element, duration, direction, regionWidth, regionHeight, callback) {
+          var offsets = {
+            'N': { x: 0, y: regionHeight }, 'NE': { x: -regionWidth, y: regionHeight },
+            'E': { x: -regionWidth, y: 0 }, 'SE': { x: -regionWidth, y: -regionHeight },
+            'S': { x: 0, y: -regionHeight }, 'SW': { x: regionWidth, y: -regionHeight },
+            'W': { x: regionWidth, y: 0 }, 'NW': { x: regionWidth, y: regionHeight }
+          };
+          var offset = offsets[direction] || offsets['N'];
+          element.style.transition = 'transform ' + (duration / 1000) + 's ease-in, opacity ' + (duration / 1000) + 's ease-in';
+          element.style.transform = 'translate(' + offset.x + 'px, ' + offset.y + 'px)';
+          element.style.opacity = '0';
+          setTimeout(callback || function(){}, duration);
+        },
+
+        apply: function(element, config, isIn, regionWidth, regionHeight, callback) {
+          if (!config || !config.type) {
+            if (callback) callback();
+            return;
+          }
+          var type = config.type.toLowerCase();
+          var duration = config.duration || 1000;
+          var direction = config.direction || 'N';
+
+          switch (type) {
+            case 'fadein':
+              if (isIn) this.fadeIn(element, duration);
+              if (callback) callback();
+              break;
+            case 'fadeout':
+              if (!isIn) this.fadeOut(element, duration, callback);
+              else if (callback) callback();
+              break;
+            case 'flyin':
+              if (isIn) this.flyIn(element, duration, direction, regionWidth, regionHeight);
+              if (callback) callback();
+              break;
+            case 'flyout':
+              if (!isIn) this.flyOut(element, duration, direction, regionWidth, regionHeight, callback);
+              else if (callback) callback();
+              break;
+            default:
+              if (callback) callback();
+          }
+        }
+      }
+    };
+
+    var container = document.getElementById('container');
+    var currentElement = null;
+
+    function createMedia(text, color) {
+      var el = document.createElement('div');
+      el.className = 'media';
+      el.textContent = text;
+      el.style.background = color;
+      return el;
+    }
+
+    function reset() {
+      container.innerHTML = '';
+      currentElement = createMedia('Ready', '#555');
+      currentElement.style.opacity = '1';
+      container.appendChild(currentElement);
+    }
+
+    function testFadeIn() {
+      reset();
+      currentElement.style.background = '#2196F3';
+      currentElement.textContent = 'Fade In';
+      window.arexibo.transitions.fadeIn(currentElement, 1000);
+    }
+
+    function testFadeOut() {
+      reset();
+      currentElement.style.background = '#f44336';
+      currentElement.textContent = 'Fade Out';
+      window.arexibo.transitions.fadeOut(currentElement, 1000, function() {
+        currentElement.textContent = '(Hidden)';
+      });
+    }
+
+    function testFlyIn(direction) {
+      reset();
+      currentElement.style.background = '#4CAF50';
+      currentElement.textContent = 'Fly In ' + direction;
+      var w = container.offsetWidth;
+      var h = container.offsetHeight;
+      window.arexibo.transitions.flyIn(currentElement, 800, direction, w, h);
+    }
+
+    function testFlyOut(direction) {
+      reset();
+      currentElement.style.background = '#FF9800';
+      currentElement.textContent = 'Fly Out ' + direction;
+      var w = container.offsetWidth;
+      var h = container.offsetHeight;
+      setTimeout(function() {
+        window.arexibo.transitions.flyOut(currentElement, 800, direction, w, h, function() {
+          currentElement.textContent = '(Hidden)';
+        });
+      }, 100);
+    }
+
+    // Initialize
+    reset();
+  </script>
+</body>
+</html>
