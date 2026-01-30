@@ -31,7 +31,7 @@ use crate::util::{ElementExt, percent_decode};
 // - overriding duration from resources
 // - fromDt/toDt
 
-pub const TRANSLATOR_VERSION: u32 = 9;
+pub const TRANSLATOR_VERSION: u32 = 10;
 
 const LAYOUT_CSS: &str = r#"
 body { margin: 0; background-repeat: no-repeat; overflow: hidden; }
