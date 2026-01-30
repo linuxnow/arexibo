@@ -2,6 +2,22 @@
 // Licensed under the GNU AGPL, version 3 or later.
 
 //! XLF layout parser and translator.
+//!
+//! This module translates Xibo Layout Format (XLF) files into standalone HTML
+//! documents that can be rendered by the player.
+//!
+//! ## Transitions
+//!
+//! Media items support in/out transitions defined in the XLF options:
+//! - `transIn`, `transInDuration`, `transInDirection`: Entry transition
+//! - `transOut`, `transOutDuration`, `transOutDirection`: Exit transition
+//!
+//! Supported transition types:
+//! - `fadeIn` / `fadeOut`: Opacity fade (duration in ms)
+//! - `flyIn` / `flyOut`: Slide from/to direction (N, NE, E, SE, S, SW, W, NW)
+//!
+//! Transitions are implemented using CSS transitions for broad QtWebEngine
+//! compatibility.
 
 use std::{fs, io::{Write, BufWriter}, collections::HashMap};
 use std::path::Path;
@@ -196,10 +212,15 @@ window.arexibo = {
 
 type MediaInfo = (i32, String, String, String, TransitionInfo, TransitionInfo);
 
+/// Transition configuration for media items.
+/// Parsed from XLF <options> elements: transIn/transOut, duration, direction.
 #[derive(Default)]
 struct TransitionInfo {
+    /// Transition type: fadeIn, fadeOut, flyIn, flyOut, or empty for none
     trans_type: String,
+    /// Duration in milliseconds (default: 1000)
     duration: i32,
+    /// Compass direction for fly transitions: N, NE, E, SE, S, SW, W, NW
     direction: String,
 }
 
