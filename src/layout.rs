@@ -11,7 +11,6 @@ use crate::resource::LayoutId;
 use crate::util::{ElementExt, percent_decode};
 
 // TODO:
-// - transitions
 // - reloading resources in iframes
 // - overriding duration from resources
 // - fromDt/toDt
@@ -41,6 +40,83 @@ window.arexibo = {
   triggers: {},
   regions: {},
 
+  // Transition utilities
+  transitions: {
+    fadeIn: function(element, duration) {
+      element.style.opacity = '0';
+      element.style.transition = 'opacity ' + (duration / 1000) + 's linear';
+      setTimeout(function() { element.style.opacity = '1'; }, 10);
+    },
+
+    fadeOut: function(element, duration, callback) {
+      element.style.transition = 'opacity ' + (duration / 1000) + 's linear';
+      element.style.opacity = '0';
+      setTimeout(callback, duration);
+    },
+
+    flyIn: function(element, duration, direction, regionWidth, regionHeight) {
+      var offsets = {
+        'N': { x: 0, y: -regionHeight }, 'NE': { x: regionWidth, y: -regionHeight },
+        'E': { x: regionWidth, y: 0 }, 'SE': { x: regionWidth, y: regionHeight },
+        'S': { x: 0, y: regionHeight }, 'SW': { x: -regionWidth, y: regionHeight },
+        'W': { x: -regionWidth, y: 0 }, 'NW': { x: -regionWidth, y: -regionHeight }
+      };
+      var offset = offsets[direction] || offsets['N'];
+      element.style.transform = 'translate(' + offset.x + 'px, ' + offset.y + 'px)';
+      element.style.opacity = '0';
+      element.style.transition = 'transform ' + (duration / 1000) + 's ease-out, opacity ' + (duration / 1000) + 's ease-out';
+      setTimeout(function() {
+        element.style.transform = 'translate(0, 0)';
+        element.style.opacity = '1';
+      }, 10);
+    },
+
+    flyOut: function(element, duration, direction, regionWidth, regionHeight, callback) {
+      var offsets = {
+        'N': { x: 0, y: regionHeight }, 'NE': { x: -regionWidth, y: regionHeight },
+        'E': { x: -regionWidth, y: 0 }, 'SE': { x: -regionWidth, y: -regionHeight },
+        'S': { x: 0, y: -regionHeight }, 'SW': { x: regionWidth, y: -regionHeight },
+        'W': { x: regionWidth, y: 0 }, 'NW': { x: regionWidth, y: regionHeight }
+      };
+      var offset = offsets[direction] || offsets['N'];
+      element.style.transition = 'transform ' + (duration / 1000) + 's ease-in, opacity ' + (duration / 1000) + 's ease-in';
+      element.style.transform = 'translate(' + offset.x + 'px, ' + offset.y + 'px)';
+      element.style.opacity = '0';
+      setTimeout(callback, duration);
+    },
+
+    apply: function(element, config, isIn, regionWidth, regionHeight, callback) {
+      if (!config || !config.type) {
+        if (callback) callback();
+        return;
+      }
+      var type = config.type.toLowerCase();
+      var duration = config.duration || 1000;
+      var direction = config.direction || 'N';
+
+      switch (type) {
+        case 'fadein':
+          if (isIn) this.fadeIn(element, duration);
+          if (callback) callback();
+          break;
+        case 'fadeout':
+          if (!isIn) this.fadeOut(element, duration, callback);
+          else if (callback) callback();
+          break;
+        case 'flyin':
+          if (isIn) this.flyIn(element, duration, direction, regionWidth, regionHeight);
+          if (callback) callback();
+          break;
+        case 'flyout':
+          if (!isIn) this.flyOut(element, duration, direction, regionWidth, regionHeight, callback);
+          else if (callback) callback();
+          break;
+        default:
+          if (callback) callback();
+      }
+    }
+  },
+
   region_switch: function(rid, next, first) {
     let {cur, total, timeoutid, media} = this.regions[rid];
     // stop a timeout, if it still exists
@@ -52,24 +128,34 @@ window.arexibo = {
     else if (next == -2)
       next = (cur + total - 1) % total;
 
-    // stop showing the current media
-    if (cur !== null)
-      media[cur][1]();
-
     this.regions[rid].cur = next;
     // when the first media is called for the second time, the region is "done"
     if (next == 0 && !first) {
       this.region_done(rid);
     }
 
-    // start showing the next media
-    media[next][0]();
-
-    // set timeout to switch to the next media
-    let duration = media[next][2]() || 1;
-    this.regions[rid].timeoutid = window.setTimeout(() => {
-      this.region_switch(rid, -1, false);
-    }, duration * 1000);
+    // Handle transitions
+    var self = this;
+    if (cur !== null && total > 1) {
+      // Apply out transition to current media, then show next
+      media[cur][1](function() {
+        // Start next media after out transition completes
+        media[next][0]();
+        // Set timeout to switch to the next media
+        let duration = media[next][2]() || 1;
+        self.regions[rid].timeoutid = window.setTimeout(() => {
+          self.region_switch(rid, -1, false);
+        }, duration * 1000);
+      });
+    } else {
+      // No current media or single item, just start next
+      media[next][0]();
+      // Set timeout to switch to the next media
+      let duration = media[next][2]() || 1;
+      this.regions[rid].timeoutid = window.setTimeout(() => {
+        this.region_switch(rid, -1, false);
+      }, duration * 1000);
+    }
   },
 
   region_done: function(rid) {
@@ -108,7 +194,27 @@ window.arexibo = {
 "#;
 
 
-type MediaInfo = (i32, String, String, String);
+type MediaInfo = (i32, String, String, String, TransitionInfo, TransitionInfo);
+
+#[derive(Default)]
+struct TransitionInfo {
+    trans_type: String,
+    duration: i32,
+    direction: String,
+}
+
+impl TransitionInfo {
+    fn to_js(&self) -> String {
+        if self.trans_type.is_empty() {
+            "null".to_string()
+        } else {
+            format!(
+                "{{type: {:?}, duration: {}, direction: {:?}}}",
+                self.trans_type, self.duration, self.direction
+            )
+        }
+    }
+}
 
 pub struct Translator<'a> {
     id: LayoutId,
@@ -254,18 +360,33 @@ impl<'a> Translator<'a> {
         writeln!(self.out, "  media: [")?;
 
         // for each media, write functions to start/stop displaying it
-        for (mid, duration, add_start, add_stop) in sequence {
+        for (mid, duration, add_start, add_stop, trans_in, trans_out) in sequence {
+            let trans_in_js = trans_in.to_js();
+            let trans_out_js = trans_out.to_js();
+
             writeln!(self.out, "    [function() {{")?;
-            writeln!(self.out, "      document.getElementById('m{mid}').style.\
-                                visibility = 'visible';")?;
+            writeln!(self.out, "      var el = document.getElementById('m{mid}');")?;
+            writeln!(self.out, "      el.style.visibility = 'visible';")?;
             writeln!(self.out, "      {add_start}")?;
-            writeln!(self.out, "    }}, function() {{")?;
+            // Apply in transition
+            writeln!(self.out, "      var region = el.parentElement;")?;
+            writeln!(self.out, "      window.arexibo.transitions.apply(el, {trans_in_js}, true, \
+                                region.offsetWidth, region.offsetHeight);")?;
+            writeln!(self.out, "    }}, function(callback) {{")?;
+            writeln!(self.out, "      var el = document.getElementById('m{mid}');")?;
+            writeln!(self.out, "      {add_stop}")?;
             // if only one item is present, don't need to hide the others
             if nitems > 1 {
-                writeln!(self.out, "      document.getElementById('m{mid}').style.\
-                                    visibility = 'hidden'; ")?;
+                // Apply out transition, then hide
+                writeln!(self.out, "      var region = el.parentElement;")?;
+                writeln!(self.out, "      window.arexibo.transitions.apply(el, {trans_out_js}, false, \
+                                    region.offsetWidth, region.offsetHeight, function() {{")?;
+                writeln!(self.out, "        el.style.visibility = 'hidden';")?;
+                writeln!(self.out, "        if (callback) callback();")?;
+                writeln!(self.out, "      }});")?;
+            } else {
+                writeln!(self.out, "      if (callback) callback();")?;
             }
-            writeln!(self.out, "      {add_stop}")?;
             writeln!(self.out, "    }}, {duration}],")?;
         }
         writeln!(self.out, "  ],")?;
@@ -282,6 +403,23 @@ impl<'a> Translator<'a> {
             "() => {}", media.def_attr("duration", "").parse::<i32>().unwrap_or(10));
         let mut add_start = "".into();
         let mut add_stop = "".into();
+
+        // Parse transition metadata
+        let trans_in = TransitionInfo {
+            trans_type: opts.find("transIn").map_or(String::new(), |e| e.text().into()),
+            duration: opts.find("transInDuration")
+                .and_then(|e| e.text().parse::<i32>().ok())
+                .unwrap_or(1000),
+            direction: opts.find("transInDirection").map_or("N".into(), |e| e.text().into()),
+        };
+        let trans_out = TransitionInfo {
+            trans_type: opts.find("transOut").map_or(String::new(), |e| e.text().into()),
+            duration: opts.find("transOutDuration")
+                .and_then(|e| e.text().parse::<i32>().ok())
+                .unwrap_or(1000),
+            direction: opts.find("transOutDirection").map_or("N".into(), |e| e.text().into()),
+        };
+
         writeln!(self.out, "  <!-- media {mid} -->")?;
         match (media.get_attr("render"), media.get_attr("type")) {
             (Some("html"), _) |
@@ -350,7 +488,7 @@ impl<'a> Translator<'a> {
                 return Ok(None);
             }
         }
-        Ok(Some((mid, duration, add_start, add_stop)))
+        Ok(Some((mid, duration, add_start, add_stop, trans_in, trans_out)))
     }
 }
 
