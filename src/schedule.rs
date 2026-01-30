@@ -20,7 +20,7 @@ pub struct DayPart {
     days_of_week: Vec<u8>,
     /// Start time as (hour, minute)
     start_time: (u8, u8),
-    /// End time as (hour, minute)
+    /// End time as (u8, u8)
     end_time: (u8, u8),
 }
 
@@ -44,6 +44,20 @@ impl DayPart {
     fn layouts(&self) -> Vec<LayoutId> {
         vec![self.layout_id]
     }
+}
+
+/// Parse time string in HH:MM format to (hour, minute) tuple
+fn parse_time(time_str: &str) -> Result<(u8, u8)> {
+    let parts: Vec<&str> = time_str.split(':').collect();
+    if parts.len() != 2 {
+        anyhow::bail!("Invalid time format: {}", time_str);
+    }
+    let hour: u8 = parts[0].parse().context("invalid hour")?;
+    let minute: u8 = parts[1].parse().context("invalid minute")?;
+    if hour > 23 || minute > 59 {
+        anyhow::bail!("Time out of range: {}:{}", hour, minute);
+    }
+    Ok((hour, minute))
 }
 
 /// Check if a time falls within a time range, handling midnight crossing
@@ -176,6 +190,38 @@ impl Schedule {
             }
         }
 
+        // Parse dayparts (recurring schedules based on days/times)
+        let mut dayparts = Vec::new();
+        for child in tree.children() {
+            if child.tag().name() == "daypart" {
+                let layout_id = child.parse_attr("file")?;
+                let priority = child.parse_attr("priority").unwrap_or(0);
+
+                // Parse days of week (comma-separated, 1=Monday to 7=Sunday)
+                let days_str = child.get_attr("days").unwrap_or("1,2,3,4,5,6,7");
+                let days_of_week: Vec<u8> = days_str
+                    .split(',')
+                    .filter_map(|s| s.trim().parse().ok())
+                    .collect();
+
+                // Parse start time (HH:MM format)
+                let start_str = child.get_attr("startTime").unwrap_or("00:00");
+                let start_time = parse_time(start_str)?;
+
+                // Parse end time (HH:MM format)
+                let end_str = child.get_attr("endTime").unwrap_or("23:59");
+                let end_time = parse_time(end_str)?;
+
+                dayparts.push(DayPart {
+                    layout_id,
+                    priority,
+                    days_of_week,
+                    start_time,
+                    end_time,
+                });
+            }
+        }
+
         let mut default = None;
         if let Some(def) = tree.find("default") {
             default = Some(def.parse_attr("file")?);
@@ -184,20 +230,25 @@ impl Schedule {
         Ok(Self {
             default,
             items,
-            dayparts: Vec::new(), // TODO: Parse dayparts from XML when CMS provides them
+            dayparts,
         })
     }
 
     pub fn layouts_now(&self) -> Vec<LayoutId> {
         let now = OffsetDateTime::now_local().unwrap();
 
+        // Filter to active dayparts
+        let active_dayparts: Vec<&DayPart> = self.dayparts.iter()
+            .filter(|dp| dp.is_active_at(&now))
+            .collect();
+
         // Filter to active items (campaigns and standalone layouts)
         let active_items: Vec<&ScheduleItem> = self.items.iter()
             .filter(|item| item.is_active(now))
             .collect();
 
-        // If no active items, return default
-        if active_items.is_empty() {
+        // If no active dayparts or items, return default
+        if active_dayparts.is_empty() && active_items.is_empty() {
             return if let Some(def) = self.default {
                 vec![def]
             } else {
@@ -205,14 +256,28 @@ impl Schedule {
             };
         }
 
-        // Find maximum priority across all active items
-        let max_priority = active_items.iter()
+        // Find maximum priority across dayparts and items
+        let max_daypart_priority = active_dayparts.iter()
+            .map(|dp| dp.priority())
+            .max()
+            .unwrap_or(i32::MIN);
+
+        let max_item_priority = active_items.iter()
             .map(|item| item.priority())
             .max()
-            .unwrap_or(0);
+            .unwrap_or(i32::MIN);
 
-        // Collect all layouts from items with max priority
+        let max_priority = max_daypart_priority.max(max_item_priority);
+
+        // Collect all layouts from dayparts and items with max priority
         let mut layouts = Vec::new();
+
+        for dp in active_dayparts {
+            if dp.priority() == max_priority {
+                layouts.extend(dp.layouts());
+            }
+        }
+
         for item in active_items {
             if item.priority() == max_priority {
                 layouts.extend(item.layouts());
@@ -465,5 +530,145 @@ mod tests {
         // Should produce same layouts
         assert_eq!(schedule.layouts_now(), schedule2.layouts_now());
         assert_eq!(schedule.default, schedule2.default);
+    }
+
+    // Daypart tests
+
+    #[test]
+    fn test_parse_time() {
+        assert_eq!(parse_time("09:30").unwrap(), (9, 30));
+        assert_eq!(parse_time("00:00").unwrap(), (0, 0));
+        assert_eq!(parse_time("23:59").unwrap(), (23, 59));
+        assert!(parse_time("25:00").is_err());
+        assert!(parse_time("12:60").is_err());
+        assert!(parse_time("invalid").is_err());
+    }
+
+    #[test]
+    fn test_is_time_in_range_normal() {
+        // Normal range: 09:00 - 17:00
+        assert!(is_time_in_range((9, 0), (9, 0), (17, 0)));
+        assert!(is_time_in_range((12, 30), (9, 0), (17, 0)));
+        assert!(is_time_in_range((17, 0), (9, 0), (17, 0)));
+        assert!(!is_time_in_range((8, 59), (9, 0), (17, 0)));
+        assert!(!is_time_in_range((17, 1), (9, 0), (17, 0)));
+    }
+
+    #[test]
+    fn test_is_time_in_range_midnight_crossing() {
+        // Crosses midnight: 22:00 - 02:00
+        assert!(is_time_in_range((22, 0), (22, 0), (2, 0)));
+        assert!(is_time_in_range((23, 30), (22, 0), (2, 0)));
+        assert!(is_time_in_range((0, 0), (22, 0), (2, 0)));
+        assert!(is_time_in_range((1, 30), (22, 0), (2, 0)));
+        assert!(is_time_in_range((2, 0), (22, 0), (2, 0)));
+        assert!(!is_time_in_range((21, 59), (22, 0), (2, 0)));
+        assert!(!is_time_in_range((2, 1), (22, 0), (2, 0)));
+        assert!(!is_time_in_range((12, 0), (22, 0), (2, 0)));
+    }
+
+    #[test]
+    fn test_daypart_parsing() {
+        let xml = r#"
+            <schedule>
+                <default file="0" />
+                <daypart file="100" priority="10" days="1,2,3,4,5" startTime="09:00" endTime="17:00" />
+            </schedule>
+        "#;
+
+        let tree = create_test_schedule_xml(xml);
+        let schedule = Schedule::parse(tree).unwrap();
+
+        assert_eq!(schedule.dayparts.len(), 1);
+        assert_eq!(schedule.dayparts[0].layout_id, 100);
+        assert_eq!(schedule.dayparts[0].priority, 10);
+        assert_eq!(schedule.dayparts[0].days_of_week, vec![1, 2, 3, 4, 5]);
+        assert_eq!(schedule.dayparts[0].start_time, (9, 0));
+        assert_eq!(schedule.dayparts[0].end_time, (17, 0));
+    }
+
+    #[test]
+    fn test_daypart_default_values() {
+        let xml = r#"
+            <schedule>
+                <default file="0" />
+                <daypart file="100" />
+            </schedule>
+        "#;
+
+        let tree = create_test_schedule_xml(xml);
+        let schedule = Schedule::parse(tree).unwrap();
+
+        assert_eq!(schedule.dayparts.len(), 1);
+        assert_eq!(schedule.dayparts[0].layout_id, 100);
+        assert_eq!(schedule.dayparts[0].priority, 0);
+        assert_eq!(schedule.dayparts[0].days_of_week, vec![1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(schedule.dayparts[0].start_time, (0, 0));
+        assert_eq!(schedule.dayparts[0].end_time, (23, 59));
+    }
+
+    #[test]
+    fn test_daypart_beats_lower_priority_schedule() {
+        // Test needs to run on a weekday during business hours to pass reliably
+        // For CI/testing purposes, this is a structural test rather than time-dependent
+        let xml = r#"
+            <schedule>
+                <default file="0" />
+                <layout file="100" priority="5" fromdt="2024-01-01 00:00:00" todt="2030-12-31 23:59:59" />
+                <daypart file="200" priority="10" days="1,2,3,4,5,6,7" startTime="00:00" endTime="23:59" />
+            </schedule>
+        "#;
+
+        let tree = create_test_schedule_xml(xml);
+        let schedule = Schedule::parse(tree).unwrap();
+
+        // Daypart has priority 10 and is active all week, all day
+        // Should beat the layout with priority 5
+        let layouts = schedule.layouts_now();
+        assert_eq!(layouts.len(), 1);
+        assert_eq!(layouts[0], 200);
+    }
+
+    #[test]
+    fn test_daypart_and_schedule_same_priority() {
+        let xml = r#"
+            <schedule>
+                <default file="0" />
+                <layout file="100" priority="10" fromdt="2024-01-01 00:00:00" todt="2030-12-31 23:59:59" />
+                <daypart file="200" priority="10" days="1,2,3,4,5,6,7" startTime="00:00" endTime="23:59" />
+            </schedule>
+        "#;
+
+        let tree = create_test_schedule_xml(xml);
+        let schedule = Schedule::parse(tree).unwrap();
+
+        // Both have priority 10, both should be included
+        let layouts = schedule.layouts_now();
+        assert_eq!(layouts.len(), 2);
+        assert!(layouts.contains(&100));
+        assert!(layouts.contains(&200));
+    }
+
+    #[test]
+    fn test_multiple_dayparts() {
+        let xml = r#"
+            <schedule>
+                <default file="0" />
+                <daypart file="100" priority="10" days="1,2,3,4,5" startTime="00:00" endTime="23:59" />
+                <daypart file="200" priority="10" days="6,7" startTime="00:00" endTime="23:59" />
+            </schedule>
+        "#;
+
+        let tree = create_test_schedule_xml(xml);
+        let schedule = Schedule::parse(tree).unwrap();
+
+        assert_eq!(schedule.dayparts.len(), 2);
+
+        // The result depends on the current day of the week
+        // On weekdays (1-5): layout 100
+        // On weekends (6-7): layout 200
+        let layouts = schedule.layouts_now();
+        assert_eq!(layouts.len(), 1);
+        assert!(layouts[0] == 100 || layouts[0] == 200);
     }
 }
