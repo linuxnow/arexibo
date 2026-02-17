@@ -144,7 +144,6 @@ jobs:
           Priority: optional
           Architecture: all
           Depends: arexibo (= ${VERSION}-${RELEASE}), gnome-kiosk-script-session, dunst, unclutter, zenity, doas, keyd, mesa-va-drivers, va-driver-all
-          Recommends: i965-va-driver
           Maintainer: Pau Aliagas <pau@linuxnow.com>
           Description: Kiosk session scripts for Arexibo
            Kiosk session scripts for running Arexibo as a full-screen digital signage
@@ -227,6 +226,7 @@ jobs:
           else
             echo "RELEASE=1" >> $GITHUB_OUTPUT
           fi
+          echo "TAG=${TAG}" >> $GITHUB_OUTPUT
 
       - name: Build Rust binary
         run: cargo build --release
@@ -240,32 +240,17 @@ jobs:
           mkdir -p deb-pkg/arexibo/DEBIAN
           mkdir -p deb-pkg/arexibo/usr/bin
           mkdir -p deb-pkg/arexibo/usr/share/doc/arexibo
-          
-          mkdir -p deb-pkg/arexibo-kiosk/DEBIAN
-          mkdir -p deb-pkg/arexibo-kiosk/usr/share/arexibo/kiosk
-          mkdir -p deb-pkg/arexibo-kiosk/usr/lib/systemd/user
-          mkdir -p deb-pkg/arexibo-kiosk/etc/keyd
 
       - name: Install files
         run: |
           VERSION=${{ steps.version.outputs.VERSION }}
           RELEASE=${{ steps.version.outputs.RELEASE }}
           
-          # Main package
+          # Main package only (kiosk package built in x86_64 job only)
           install -m755 target/release/arexibo deb-pkg/arexibo/usr/bin/arexibo
           install -m644 LICENSE deb-pkg/arexibo/usr/share/doc/arexibo/
           install -m644 README.md deb-pkg/arexibo/usr/share/doc/arexibo/
           install -m644 CHANGELOG.md deb-pkg/arexibo/usr/share/doc/arexibo/
-          
-          # Kiosk package
-          install -m755 kiosk/gnome-kiosk-script.arexibo.sh deb-pkg/arexibo-kiosk/usr/share/arexibo/kiosk/
-          install -m755 kiosk/gnome-kiosk-script.zenity.init.sh deb-pkg/arexibo-kiosk/usr/share/arexibo/kiosk/
-          install -m644 kiosk/dunstrc deb-pkg/arexibo-kiosk/usr/share/arexibo/kiosk/
-          install -m644 kiosk/arexibo-player.service deb-pkg/arexibo-kiosk/usr/lib/systemd/user/
-          install -m755 kiosk/arexibo-keyd-run.sh deb-pkg/arexibo-kiosk/usr/share/arexibo/kiosk/
-          install -m755 kiosk/arexibo-show-ip.sh deb-pkg/arexibo-kiosk/usr/share/arexibo/kiosk/
-          install -m755 kiosk/arexibo-show-cms.sh deb-pkg/arexibo-kiosk/usr/share/arexibo/kiosk/
-          install -m644 kiosk/keyd-arexibo.conf deb-pkg/arexibo-kiosk/etc/keyd/arexibo.conf
 
       - name: Create control files
         run: |
@@ -288,24 +273,6 @@ jobs:
            designed for kiosk and digital signage deployments on Linux.
           Homepage: https://github.com/linuxnow/arexibo
           EOF
-          
-          # Kiosk package control
-          cat > deb-pkg/arexibo-kiosk/DEBIAN/control << EOF
-          Package: arexibo-kiosk
-          Version: ${VERSION}-${RELEASE}
-          Section: misc
-          Priority: optional
-          Architecture: all
-          Depends: arexibo (= ${VERSION}-${RELEASE}), gnome-kiosk-script-session, dunst, unclutter, zenity, doas, keyd, mesa-va-drivers, va-driver-all
-          Recommends: i965-va-driver
-          Maintainer: Pau Aliagas <pau@linuxnow.com>
-          Description: Kiosk session scripts for Arexibo
-           Kiosk session scripts for running Arexibo as a full-screen digital signage
-           player under GNOME Kiosk. Includes a first-boot registration wizard,
-           session holder with health monitoring, dunst notification config, and
-           a systemd user unit for the player process.
-          Homepage: https://github.com/linuxnow/arexibo
-          EOF
 
       - name: Build DEB packages
         run: |
@@ -313,7 +280,6 @@ jobs:
           RELEASE=${{ steps.version.outputs.RELEASE }}
           
           dpkg-deb --build deb-pkg/arexibo arexibo_${VERSION}-${RELEASE}_arm64.deb
-          dpkg-deb --build deb-pkg/arexibo-kiosk arexibo-kiosk_${VERSION}-${RELEASE}_all.deb
           
           ls -lh *.deb
 
