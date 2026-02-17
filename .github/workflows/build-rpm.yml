@@ -1,0 +1,23 @@
+name: Build Arexibo RPM
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: xibo-players/.github/.github/workflows/build-rpm.yml@main
+    with:
+      package-name: arexibo
+      rpm-spec: 'rpm/arexibo.spec'
+      arch-matrix: '["x86_64", "aarch64"]'
+      source-tarball: 'full'
+      gpg-sign: true
+      default-version: '0.3.1'
+      publish-to-repo: true
+      create-github-release: true
+    secrets: inherit

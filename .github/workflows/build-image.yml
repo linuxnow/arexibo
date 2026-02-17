@@ -1,0 +1,21 @@
+name: Build Arexibo Kiosk Images
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: xibo-players/.github/.github/workflows/build-iso.yml@main
+    with:
+      package-name: arexibo
+      kickstart-file: 'kickstart/xibo-kiosk.ks'
+      build-installer: true
+      build-disk-images: true
+      architectures: 'x86_64,aarch64'
+      default-version: '0.3.1'
+    secrets: inherit
