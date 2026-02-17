@@ -50,9 +50,7 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build RPM using script
-        run: |
-          chmod +x rpm/build-rpm.sh
-          ./rpm/build-rpm.sh "${{ steps.version.outputs.version }}"
+        run: ./rpm/build-rpm.sh "${{ steps.version.outputs.version }}"
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
@@ -98,9 +96,7 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build RPM using script
-        run: |
-          chmod +x rpm/build-rpm.sh
-          ./rpm/build-rpm.sh "${{ steps.version.outputs.version }}"
+        run: ./rpm/build-rpm.sh "${{ steps.version.outputs.version }}"
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 

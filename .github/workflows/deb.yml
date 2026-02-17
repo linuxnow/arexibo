@@ -50,9 +50,7 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build DEB using script
-        run: |
-          chmod +x deb/build-deb.sh
-          ./deb/build-deb.sh "${{ steps.version.outputs.version }}"
+        run: ./deb/build-deb.sh "${{ steps.version.outputs.version }}"
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
@@ -98,9 +96,7 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build DEB using script
-        run: |
-          chmod +x deb/build-deb.sh
-          ./deb/build-deb.sh "${{ steps.version.outputs.version }}"
+        run: ./deb/build-deb.sh "${{ steps.version.outputs.version }}"
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
