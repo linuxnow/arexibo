@@ -33,55 +33,13 @@ designed for kiosk and digital signage deployments on Linux.
 export CARGO_NET_GIT_FETCH_WITH_CLI=true
 cargo build --release
 
-%package        kiosk
-Summary:        Kiosk session scripts for Arexibo
-BuildArch:      noarch
-Requires:       %{name} = %{version}-%{release}
-Requires:       gnome-kiosk-script-session
-Requires:       dunst
-Requires:       unclutter
-Requires:       zenity
-Requires:       opendoas
-Requires:       keyd
-Requires:       mesa-va-drivers
-Requires:       libva
-Recommends:     libva-intel-driver
-
-%description    kiosk
-Kiosk session scripts for running Arexibo as a full-screen digital signage
-player under GNOME Kiosk. Includes a first-boot registration wizard,
-session holder with health monitoring, dunst notification config, and
-a systemd user unit for the player process.
-
 %install
 install -Dm755 target/release/arexibo %{buildroot}%{_bindir}/arexibo
-
-# Kiosk scripts
-install -Dm755 kiosk/gnome-kiosk-script.arexibo.sh %{buildroot}%{_datadir}/arexibo/kiosk/gnome-kiosk-script.arexibo.sh
-install -Dm755 kiosk/gnome-kiosk-script.zenity.init.sh %{buildroot}%{_datadir}/arexibo/kiosk/gnome-kiosk-script.zenity.init.sh
-install -Dm644 kiosk/dunstrc %{buildroot}%{_datadir}/arexibo/kiosk/dunstrc
-install -Dm644 kiosk/arexibo-player.service %{buildroot}%{_userunitdir}/arexibo-player.service
-install -Dm755 kiosk/arexibo-keyd-run.sh %{buildroot}%{_datadir}/arexibo/kiosk/arexibo-keyd-run.sh
-install -Dm755 kiosk/arexibo-show-ip.sh %{buildroot}%{_datadir}/arexibo/kiosk/arexibo-show-ip.sh
-install -Dm755 kiosk/arexibo-show-cms.sh %{buildroot}%{_datadir}/arexibo/kiosk/arexibo-show-cms.sh
-install -Dm644 kiosk/keyd-arexibo.conf %{buildroot}%{_sysconfdir}/keyd/arexibo.conf
 
 %files
 %license LICENSE
 %doc README.md CHANGELOG.md
 %{_bindir}/arexibo
-
-%files          kiosk
-%dir %{_datadir}/arexibo
-%dir %{_datadir}/arexibo/kiosk
-%{_datadir}/arexibo/kiosk/gnome-kiosk-script.arexibo.sh
-%{_datadir}/arexibo/kiosk/gnome-kiosk-script.zenity.init.sh
-%{_datadir}/arexibo/kiosk/dunstrc
-%{_datadir}/arexibo/kiosk/arexibo-keyd-run.sh
-%{_datadir}/arexibo/kiosk/arexibo-show-ip.sh
-%{_datadir}/arexibo/kiosk/arexibo-show-cms.sh
-%{_userunitdir}/arexibo-player.service
-%{_sysconfdir}/keyd/arexibo.conf
 
 %changelog
 * Mon Jan 27 2026 Pau Aliagas <pau@linuxnow.com> - 0.3.1-2

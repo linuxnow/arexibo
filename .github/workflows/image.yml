@@ -44,10 +44,10 @@ jobs:
           VERSION: ${{ github.event.inputs.version }}
         run: |
           cd output
-          mv *.raw arexibo-kiosk_${VERSION}_x86_64.raw
-          qemu-img convert -f raw -O qcow2 -c arexibo-kiosk_${VERSION}_x86_64.raw arexibo-kiosk_${VERSION}_x86_64.qcow2
-          qemu-img resize arexibo-kiosk_${VERSION}_x86_64.qcow2 16G
-          xz -T0 -9 arexibo-kiosk_${VERSION}_x86_64.raw
+          mv *.raw xibo-kiosk_${VERSION}_x86_64.raw
+          qemu-img convert -f raw -O qcow2 -c xibo-kiosk_${VERSION}_x86_64.raw xibo-kiosk_${VERSION}_x86_64.qcow2
+          qemu-img resize xibo-kiosk_${VERSION}_x86_64.qcow2 16G
+          xz -T0 -9 xibo-kiosk_${VERSION}_x86_64.raw
 
       - name: List output
         run: ls -lah output/
@@ -92,12 +92,12 @@ jobs:
           VERSION: ${{ github.event.inputs.version }}
         run: |
           cd output
-          mv arexibo-kiosk_${VERSION}.raw arexibo-kiosk_${VERSION}_aarch64.raw
+          mv xibo-kiosk_${VERSION}.raw xibo-kiosk_${VERSION}_aarch64.raw
 
       - name: Compress image
         run: |
           cd output
-          xz -T0 -9 arexibo-kiosk_${{ github.event.inputs.version }}_aarch64.raw
+          xz -T0 -9 xibo-kiosk_${{ github.event.inputs.version }}_aarch64.raw
 
       - name: List output
         run: ls -lah output/
@@ -131,9 +131,9 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          mkksiso --skip-mkefiboot --ks kickstart/arexibo-kiosk.ks \
+          mkksiso --skip-mkefiboot --ks kickstart/xibo-kiosk.ks \
             /tmp/fedora-netinst.iso \
-            arexibo-kiosk-installer_${VERSION}_x86_64.iso
+            xibo-kiosk-installer_${VERSION}_x86_64.iso
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -199,13 +199,13 @@ jobs:
 
             ```bash
             # Flash ISO to USB
-            sudo dd if=arexibo-kiosk-installer_*_x86_64.iso of=/dev/sdX bs=8M status=progress
+            sudo dd if=xibo-kiosk-installer_*_x86_64.iso of=/dev/sdX bs=8M status=progress
             ```
 
             Or use a stock Fedora netinstall ISO with kickstart URL:
             ```
             # At boot, press 'e' and add to kernel cmdline:
-            inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/arexibo-kiosk.ks
+            inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/xibo-kiosk.ks
             ```
 
             #### 2. Disk Images (Flash directly)
@@ -213,7 +213,7 @@ jobs:
             - **Raw.xz** (x86_64 / aarch64): For Balena Etcher or dd
 
             ```bash
-            xz -dc arexibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress
+            xz -dc xibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress
             ```
 
             #### 3. VM Image
@@ -221,7 +221,7 @@ jobs:
             - **QCOW2** (x86_64): For GNOME Boxes, virt-manager, QEMU
 
             ```bash
-            qemu-system-x86_64 -enable-kvm -m 2G -drive file=arexibo-kiosk_*_x86_64.qcow2
+            qemu-system-x86_64 -enable-kvm -m 2G -drive file=xibo-kiosk_*_x86_64.qcow2
             ```
 
             #### 4. RPM Installation (existing Fedora 43)
@@ -241,7 +241,7 @@ jobs:
             EOF
 
             # Install
-            sudo dnf install arexibo arexibo-kiosk
+            sudo dnf install arexibo xibo-kiosk
             ```
 
             ### Default Credentials

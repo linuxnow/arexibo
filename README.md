@@ -10,6 +10,11 @@ implemented mostly in Rust but making use of Qt GUI components, for Linux platfo
 It is currently still incomplete.  Don't expect more complex features to work
 unless tested.
 
+> **Note**: For full kiosk functionality, install the separate
+> [xibo-kiosk](https://github.com/xibo-players/xibo-kiosk) package which provides
+> session management, keyboard shortcuts, and automated setup. The xibo-kiosk
+> package works with multiple Xibo player implementations.
+
 
 ## Installation
 
@@ -35,6 +40,10 @@ EOF
 
 # Install
 sudo dnf install arexibo
+
+# Optional: Install kiosk session scripts (from separate repository)
+# See https://github.com/xibo-players/xibo-kiosk for details
+sudo dnf install xibo-kiosk
 ```
 
 Or install directly from a downloaded RPM:
@@ -49,9 +58,13 @@ A bootable installer ISO is available from the
 [GitHub Releases](https://github.com/linuxnow/arexibo/releases) page.
 This performs an automated Fedora 43 installation with arexibo pre-configured.
 
+> **Note**: The installer also installs the xibo-kiosk package from the 
+> [xibo-kiosk repository](https://github.com/xibo-players/xibo-kiosk) for
+> full kiosk functionality.
+
 ```bash
 # Flash ISO to USB
-sudo dd if=arexibo-kiosk-installer_*_x86_64.iso of=/dev/sdX bs=8M status=progress
+sudo dd if=xibo-kiosk-installer_*_x86_64.iso of=/dev/sdX bs=8M status=progress
 
 # Or use Balena Etcher
 ```
@@ -60,7 +73,7 @@ Alternatively, use any Fedora 43 netinstall ISO with the kickstart URL:
 
 ```bash
 # At boot menu, press 'e' to edit and add to the linux line:
-inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/arexibo-kiosk.ks
+inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/xibo-kiosk.ks
 # Then press Ctrl+X to boot
 ```
 
@@ -72,16 +85,18 @@ Ready-to-boot kiosk images are available from the
 - **QCOW2** (x86_64): For VMs (GNOME Boxes, virt-manager, QEMU)
 - **Raw.xz** (x86_64 / aarch64): For flashing to physical hardware
 
+These images include both arexibo and xibo-kiosk packages pre-installed.
+
 Default credentials: `xibo` / `xibo`
 
 > **Change passwords after first login!**
 
 ```bash
 # Test in QEMU
-qemu-system-x86_64 -enable-kvm -m 2G -nic user -drive file=arexibo-kiosk_*_x86_64.qcow2
+qemu-system-x86_64 -enable-kvm -m 2G -nic user -drive file=xibo-kiosk_*_x86_64.qcow2
 
 # Flash to hardware (use raw.xz)
-xz -dc arexibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress
+xz -dc xibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress
 ```
 
 Or use [Balena Etcher](https://etcher.balena.io/) which handles `.xz` files
@@ -198,8 +213,9 @@ services.arexibo.keyFile = config.sops.secrets.arexibo-key.path;
 
 ## Kiosk Keyboard Shortcuts
 
-When running in kiosk mode, the following keyboard shortcuts are available
-(via [keyd](https://github.com/rvaiya/keyd)):
+When using the xibo-kiosk package (available separately from 
+[xibo-kiosk repository](https://github.com/xibo-players/xibo-kiosk)), 
+the following keyboard shortcuts are available via [keyd](https://github.com/rvaiya/keyd):
 
 | Shortcut | Action |
 |----------|--------|

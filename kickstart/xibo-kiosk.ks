@@ -1,11 +1,11 @@
 #version=F43
-# Arexibo Kiosk Kickstart File
+# Xibo Kiosk Kickstart File
 # =============================
-# Automated Fedora 43 installation for arexibo digital signage
+# Automated Fedora 43 installation for Xibo digital signage
 #
 # Usage:
 #   Boot from Fedora netinstall and add to kernel cmdline:
-#   inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/arexibo-kiosk.ks
+#   inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/xibo-kiosk.ks
 #
 # Or create a custom ISO with this kickstart embedded.
 
@@ -22,13 +22,13 @@ timezone Europe/Madrid --utc
 
 # Network - DHCP by default
 network --bootproto=dhcp --device=link --activate --onboot=yes
-network --hostname=arexibo-kiosk
+network --hostname=xibo-kiosk
 
 # Root password (change this or use --lock)
 rootpw --lock
 
 # User configuration
-user --name=xibo --groups=wheel --password=xibo --plaintext --gecos="Arexibo Kiosk User"
+user --name=xibo --groups=wheel --password=xibo --plaintext --gecos="Xibo Kiosk User"
 
 # Disk configuration - use entire disk
 clearpart --all --initlabel
@@ -63,7 +63,7 @@ gstreamer1-plugins-ugly-free
 gstreamer1-plugin-openh264
 gstreamer1-plugin-libav
 
-# Kiosk utilities (also pulled by arexibo-kiosk, listed for clarity)
+# Kiosk utilities (also pulled by xibo-kiosk, listed for clarity)
 zenity
 dunst
 unclutter
@@ -101,7 +101,7 @@ enabled=1
 gpgcheck=0
 EOF
 
-dnf install -y arexibo arexibo-kiosk
+dnf install -y arexibo xibo-kiosk
 %end
 
 # Configure xibo user and directories
