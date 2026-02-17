@@ -87,11 +87,6 @@ jobs:
           mkdir -p deb-pkg/arexibo/DEBIAN
           mkdir -p deb-pkg/arexibo/usr/bin
           mkdir -p deb-pkg/arexibo/usr/share/doc/arexibo
-          
-          mkdir -p deb-pkg/xibo-kiosk/DEBIAN
-          mkdir -p deb-pkg/xibo-kiosk/usr/share/xibo-kiosk
-          mkdir -p deb-pkg/xibo-kiosk/usr/lib/systemd/user
-          mkdir -p deb-pkg/xibo-kiosk/etc/keyd
 
       - name: Install files
         run: |
@@ -103,16 +98,6 @@ jobs:
           install -m644 LICENSE deb-pkg/arexibo/usr/share/doc/arexibo/
           install -m644 README.md deb-pkg/arexibo/usr/share/doc/arexibo/
           install -m644 CHANGELOG.md deb-pkg/arexibo/usr/share/doc/arexibo/
-          
-          # Kiosk package
-          install -m755 kiosk/gnome-kiosk-script.xibo.sh deb-pkg/xibo-kiosk/usr/share/xibo-kiosk/
-          install -m755 kiosk/gnome-kiosk-script.xibo-init.sh deb-pkg/xibo-kiosk/usr/share/xibo-kiosk/
-          install -m644 kiosk/dunstrc deb-pkg/xibo-kiosk/usr/share/xibo-kiosk/
-          install -m644 kiosk/xibo-player.service deb-pkg/xibo-kiosk/usr/lib/systemd/user/
-          install -m755 kiosk/xibo-keyd-run.sh deb-pkg/xibo-kiosk/usr/share/xibo-kiosk/
-          install -m755 kiosk/xibo-show-ip.sh deb-pkg/xibo-kiosk/usr/share/xibo-kiosk/
-          install -m755 kiosk/xibo-show-cms.sh deb-pkg/xibo-kiosk/usr/share/xibo-kiosk/
-          install -m644 kiosk/keyd-xibo.conf deb-pkg/xibo-kiosk/etc/keyd/xibo.conf
 
       - name: Create control files
         run: |
@@ -135,23 +120,6 @@ jobs:
            designed for kiosk and digital signage deployments on Linux.
           Homepage: https://github.com/linuxnow/arexibo
           EOF
-          
-          # Kiosk package control
-          cat > deb-pkg/xibo-kiosk/DEBIAN/control << EOF
-          Package: xibo-kiosk
-          Version: ${VERSION}-${RELEASE}
-          Section: misc
-          Priority: optional
-          Architecture: all
-          Depends: arexibo (= ${VERSION}-${RELEASE}), gnome-kiosk-script-session, dunst, unclutter, zenity, doas, keyd, mesa-va-drivers, va-driver-all
-          Maintainer: Pau Aliagas <pau@linuxnow.com>
-          Description: Kiosk session scripts for Arexibo
-           Kiosk session scripts for running Arexibo as a full-screen digital signage
-           player under GNOME Kiosk. Includes a first-boot registration wizard,
-           session holder with health monitoring, dunst notification config, and
-           a systemd user unit for the player process.
-          Homepage: https://github.com/linuxnow/arexibo
-          EOF
 
       - name: Build DEB packages
         run: |
@@ -159,7 +127,6 @@ jobs:
           RELEASE=${{ steps.version.outputs.RELEASE }}
           
           dpkg-deb --build deb-pkg/arexibo arexibo_${VERSION}-${RELEASE}_amd64.deb
-          dpkg-deb --build deb-pkg/xibo-kiosk xibo-kiosk_${VERSION}-${RELEASE}_all.deb
           
           ls -lh *.deb
 
