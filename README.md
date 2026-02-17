@@ -51,7 +51,7 @@ This performs an automated Fedora 43 installation with arexibo pre-configured.
 
 ```bash
 # Flash ISO to USB
-sudo dd if=arexibo-kiosk-installer_*_x86_64.iso of=/dev/sdX bs=8M status=progress
+sudo dd if=xibo-kiosk-installer_*_x86_64.iso of=/dev/sdX bs=8M status=progress
 
 # Or use Balena Etcher
 ```
@@ -60,7 +60,7 @@ Alternatively, use any Fedora 43 netinstall ISO with the kickstart URL:
 
 ```bash
 # At boot menu, press 'e' to edit and add to the linux line:
-inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/arexibo-kiosk.ks
+inst.ks=https://raw.githubusercontent.com/linuxnow/arexibo/master/kickstart/xibo-kiosk.ks
 # Then press Ctrl+X to boot
 ```
 
@@ -78,10 +78,10 @@ Default credentials: `xibo` / `xibo`
 
 ```bash
 # Test in QEMU
-qemu-system-x86_64 -enable-kvm -m 2G -nic user -drive file=arexibo-kiosk_*_x86_64.qcow2
+qemu-system-x86_64 -enable-kvm -m 2G -nic user -drive file=xibo-kiosk_*_x86_64.qcow2
 
 # Flash to hardware (use raw.xz)
-xz -dc arexibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress
+xz -dc xibo-kiosk_*_x86_64.raw.xz | sudo dd of=/dev/sdX bs=8M status=progress
 ```
 
 Or use [Balena Etcher](https://etcher.balena.io/) which handles `.xz` files
