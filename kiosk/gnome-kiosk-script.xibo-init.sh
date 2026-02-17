@@ -1,14 +1,14 @@
 #!/bin/bash
-# Arexibo CMS Registration Wizard
+# Xibo CMS Registration Wizard
 # =================================
 # First-boot wizard that collects CMS credentials via Zenity dialogs,
 # then hands off to the session holder.
 
-AREXIBO_KIOSK_DIR="${AREXIBO_KIOSK_DIR:-/usr/share/arexibo/kiosk}"
-AREXIBO_DATA_DIR="${AREXIBO_DATA_DIR:-${HOME}/.local/share/arexibo}"
+XIBO_KIOSK_DIR="${XIBO_KIOSK_DIR:-/usr/share/xibo-kiosk}"
+XIBO_DATA_DIR="${XIBO_DATA_DIR:-${HOME}/.local/share/xibo}"
 
 # Start dunst for notifications
-dunst -conf "${AREXIBO_KIOSK_DIR}/dunstrc" &
+dunst -conf "${XIBO_KIOSK_DIR}/dunstrc" &
 
 # Wait for Wayland compositor
 sleep 2
@@ -17,25 +17,25 @@ sleep 2
 systemctl --user import-environment WAYLAND_DISPLAY DISPLAY XDG_RUNTIME_DIR
 
 # Show welcome message
-notify-send "Arexibo Setup" "Starting configuration wizard..." -t 3000
+notify-send "Xibo Setup" "Starting configuration wizard..." -t 3000
 
 # Main registration loop
 while true; do
     # Get CMS host from user
     CMS_HOST=$(zenity --entry \
-        --title="Arexibo Setup" \
+        --title="Xibo Setup" \
         --text="Enter CMS Server URL (e.g., https://xibo.example.com/):" \
         --entry-text="https://" \
         --width=400)
 
     if [ -z "$CMS_HOST" ]; then
         zenity --question \
-            --title="Arexibo Setup" \
+            --title="Xibo Setup" \
             --text="Setup cancelled. Do you want to try again?" \
             --width=300
 
         if [ $? -ne 0 ]; then
-            notify-send "Arexibo" "Setup cancelled. Rebooting in 10 seconds..." -t 8000
+            notify-send "Xibo" "Setup cancelled. Rebooting in 10 seconds..." -t 8000
             sleep 10
             doas reboot 2>/dev/null || reboot
         fi
@@ -47,13 +47,13 @@ while true; do
 
     # Get CMS key from user (plain text — this is a dedicated kiosk)
     CMS_KEY=$(zenity --entry \
-        --title="Arexibo Setup" \
+        --title="Xibo Setup" \
         --text="Enter CMS Key:" \
         --width=400)
 
     if [ -z "$CMS_KEY" ]; then
         zenity --warning \
-            --title="Arexibo Setup" \
+            --title="Xibo Setup" \
             --text="CMS Key is required." \
             --width=300
         continue
@@ -67,7 +67,7 @@ while true; do
     # Get optional display name
     HOSTNAME=$(hostname)
     DISPLAY_NAME=$(zenity --entry \
-        --title="Arexibo Setup" \
+        --title="Xibo Setup" \
         --text="Enter Display Name (optional):" \
         --entry-text="${HOSTNAME}" \
         --width=400)
@@ -79,7 +79,7 @@ while true; do
 
     # Show summary and confirm
     zenity --question \
-        --title="Arexibo Setup - Confirm" \
+        --title="Xibo Setup - Confirm" \
         --text="Configuration Summary:\n\nCMS Host: ${CMS_HOST}\nDisplay ID: arx43-${DISPLAY_ID}\nDisplay Name: ${DISPLAY_NAME}\nIP Address: ${IP}\n\nProceed with registration?" \
         --width=400
 
@@ -88,8 +88,8 @@ while true; do
     fi
 
     # Create cms.json
-    mkdir -p "${AREXIBO_DATA_DIR}"
-    cat > "${AREXIBO_DATA_DIR}/cms.json" << EOF
+    mkdir -p "${XIBO_DATA_DIR}"
+    cat > "${XIBO_DATA_DIR}/cms.json" << EOF
 {
     "address": "${CMS_HOST}",
     "key": "${CMS_KEY}",
@@ -100,48 +100,48 @@ while true; do
 EOF
 
     if [ $? -eq 0 ]; then
-        notify-send -r 1 -t 0 "Arexibo" "IP: $IP — Configuration saved. Starting player..." 2>/dev/null || true
+        notify-send -r 1 -t 0 "Xibo" "IP: $IP — Configuration saved. Starting player..." 2>/dev/null || true
 
         # Start the player service and wait for initial registration attempt
-        systemctl --user start arexibo-player.service
+        systemctl --user start xibo-player.service
         sleep 5
 
-        if systemctl --user is-active --quiet arexibo-player.service; then
-            notify-send -r 1 -t 5000 "Arexibo" "IP: $IP — Connected to CMS" 2>/dev/null || true
+        if systemctl --user is-active --quiet xibo-player.service; then
+            notify-send -r 1 -t 5000 "Xibo" "IP: $IP — Connected to CMS" 2>/dev/null || true
 
             zenity --info \
-                --title="Arexibo Setup Complete" \
+                --title="Xibo Setup Complete" \
                 --text="Player is running!\n\nDisplay ID: arx43-${DISPLAY_ID}\nIP Address: ${IP}\n\nIf the display shows no content, authorize it in your Xibo CMS." \
                 --width=400
         else
             # Exit code 2 = not authorized yet (transient), anything else = real error
-            EXIT_CODE=$(systemctl --user show -p ExecMainStatus --value arexibo-player.service 2>/dev/null)
+            EXIT_CODE=$(systemctl --user show -p ExecMainStatus --value xibo-player.service 2>/dev/null)
 
             if [ "$EXIT_CODE" = "2" ]; then
-                notify-send -r 1 -t 0 -u normal "Arexibo" \
+                notify-send -r 1 -t 0 -u normal "Xibo" \
                     "IP: $IP — Waiting for CMS authorization\nDisplay ID: arx43-${DISPLAY_ID}" 2>/dev/null || true
 
                 zenity --info \
-                    --title="Arexibo Setup - Authorization Pending" \
+                    --title="Xibo Setup - Authorization Pending" \
                     --text="Display registered but not yet authorized.\n\nDisplay ID: arx43-${DISPLAY_ID}\nIP Address: ${IP}\n\nPlease authorize this display in your Xibo CMS.\nThe player will retry automatically." \
                     --width=400
             else
-                ERROR=$(journalctl --user -u arexibo-player.service --no-pager -n 20 -q 2>/dev/null \
+                ERROR=$(journalctl --user -u xibo-player.service --no-pager -n 20 -q 2>/dev/null \
                     | grep -iE 'error|fail|denied|refused|timeout' \
                     | tail -1 \
                     | sed 's/.*arexibo\[.*\]: //' \
                     | head -c 200)
 
-                notify-send -r 1 -t 0 -u critical "Arexibo" \
+                notify-send -r 1 -t 0 -u critical "Xibo" \
                     "IP: $IP — Error: ${ERROR:-player failed to start}" 2>/dev/null || true
 
                 zenity --question \
-                    --title="Arexibo Setup - Error" \
+                    --title="Xibo Setup - Error" \
                     --text="Player failed to start.\n\nError: ${ERROR:-unknown}\nIP Address: ${IP}\n\nDo you want to reconfigure?" \
                     --width=400
 
                 if [ $? -eq 0 ]; then
-                    rm -f "${AREXIBO_DATA_DIR}/cms.json"
+                    rm -f "${XIBO_DATA_DIR}/cms.json"
                     continue
                 fi
             fi
@@ -149,10 +149,10 @@ EOF
 
         # Hand off to session holder (has monitoring loop)
         pkill -u "$(whoami)" dunst 2>/dev/null || true
-        exec "${AREXIBO_KIOSK_DIR}/gnome-kiosk-script.arexibo.sh"
+        exec "${XIBO_KIOSK_DIR}/gnome-kiosk-script.arexibo.sh"
     else
         zenity --error \
-            --title="Arexibo Setup" \
+            --title="Xibo Setup" \
             --text="Failed to save configuration. Please try again." \
             --width=300
     fi

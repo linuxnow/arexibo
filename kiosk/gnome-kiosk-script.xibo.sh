@@ -1,15 +1,15 @@
 #!/bin/bash
-# Arexibo GNOME Kiosk Session Holder
+# Xibo GNOME Kiosk Session Holder
 # ===================================
 # Keeps the gnome-kiosk session alive while delegating player management
-# to systemd (arexibo-player.service). Shows persistent status notifications.
+# to systemd (xibo-player.service). Shows persistent status notifications.
 
-AREXIBO_KIOSK_DIR="${AREXIBO_KIOSK_DIR:-/usr/share/arexibo/kiosk}"
-AREXIBO_DATA_DIR="${AREXIBO_DATA_DIR:-${HOME}/.local/share/arexibo}"
+XIBO_KIOSK_DIR="${XIBO_KIOSK_DIR:-/usr/share/xibo-kiosk}"
+XIBO_DATA_DIR="${XIBO_DATA_DIR:-${HOME}/.local/share/xibo}"
 NOTIFY_ID=1
 
 # Start supporting services
-dunst -conf "${AREXIBO_KIOSK_DIR}/dunstrc" &
+dunst -conf "${XIBO_KIOSK_DIR}/dunstrc" &
 unclutter --timeout 3 &
 
 # Wait for compositor
@@ -39,12 +39,12 @@ get_ip() {
 status_notify() {
     local msg="$1"
     local urgency="${2:-normal}"
-    notify-send -r "$NOTIFY_ID" -u "$urgency" -t 0 "Arexibo" "$msg" 2>/dev/null || true
+    notify-send -r "$NOTIFY_ID" -u "$urgency" -t 0 "Xibo" "$msg" 2>/dev/null || true
 }
 
 # Helper: extract error reason from arexibo journal logs
 get_player_error() {
-    journalctl --user -u arexibo-player.service --no-pager -n 20 -q 2>/dev/null \
+    journalctl --user -u xibo-player.service --no-pager -n 20 -q 2>/dev/null \
         | grep -iE 'error|fail|denied|unauthorized|not authorised|refused|timeout' \
         | tail -1 \
         | sed 's/.*arexibo\[.*\]: //' \
@@ -56,12 +56,12 @@ dunstctl close-all 2>/dev/null || true
 
 # Show initial status briefly (5 seconds)
 IP=$(get_ip)
-CMS=$(grep -oP '"address"\s*:\s*"\K[^"]+' "${AREXIBO_DATA_DIR}/cms.json" 2>/dev/null || echo "not configured")
-notify-send -t 5000 "Arexibo" "IP: $IP\nCMS: $CMS\nStarting player..."
+CMS=$(grep -oP '"address"\s*:\s*"\K[^"]+' "${XIBO_DATA_DIR}/cms.json" 2>/dev/null || echo "not configured")
+notify-send -t 5000 "Xibo" "IP: $IP\nCMS: $CMS\nStarting player..."
 
 # Start arexibo via systemd (handles restarts, resource limits, logging)
-if [ -f "${AREXIBO_DATA_DIR}/cms.json" ]; then
-    systemctl --user start arexibo-player.service
+if [ -f "${XIBO_DATA_DIR}/cms.json" ]; then
+    systemctl --user start xibo-player.service
 fi
 
 # Monitor player health
@@ -73,13 +73,13 @@ while true; do
 
     IP=$(get_ip)
 
-    if systemctl --user is-active --quiet arexibo-player.service; then
+    if systemctl --user is-active --quiet xibo-player.service; then
         FAIL_COUNT=0
         # Close notification when connected — player is showing content
         dunstctl close-all 2>/dev/null || notify-send -r "$NOTIFY_ID" -t 1 " " " " 2>/dev/null || true
     else
         # Check exit code: 2 = not authorized yet (transient), 1 = real error
-        EXIT_CODE=$(systemctl --user show -p ExecMainStatus --value arexibo-player.service 2>/dev/null)
+        EXIT_CODE=$(systemctl --user show -p ExecMainStatus --value xibo-player.service 2>/dev/null)
 
         if [ "$EXIT_CODE" = "2" ]; then
             # Display registered but not yet authorized in CMS — wait patiently
@@ -97,23 +97,23 @@ while true; do
 
             if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ]; then
                 # Offer to reconfigure if wizard is available
-                if [ -f "${AREXIBO_KIOSK_DIR}/gnome-kiosk-script.zenity.init.sh" ]; then
+                if [ -f "${XIBO_KIOSK_DIR}/gnome-kiosk-script.zenity.init.sh" ]; then
                     status_notify "IP: $IP — Player failed. Reconfigure?" "critical"
                     if zenity --question \
-                        --title="Arexibo - Player Failed" \
+                        --title="Xibo - Player Failed" \
                         --text="The player has failed $MAX_FAILS times.\n\nLast error: ${ERROR:-unknown}\n\nDo you want to reconfigure?" \
                         --width=400 2>/dev/null; then
                         # Remove config so dispatcher picks wizard on next boot
-                        rm -f "${AREXIBO_DATA_DIR}/cms.json"
+                        rm -f "${XIBO_DATA_DIR}/cms.json"
                         pkill -u "$(whoami)" dunst 2>/dev/null || true
-                        exec "${AREXIBO_KIOSK_DIR}/gnome-kiosk-script.zenity.init.sh"
+                        exec "${XIBO_KIOSK_DIR}/gnome-kiosk-script.zenity.init.sh"
                     fi
                 fi
 
                 # Reset counter — either user declined reconfigure or no wizard available
                 FAIL_COUNT=0
                 # Try restarting the service
-                systemctl --user restart arexibo-player.service 2>/dev/null || true
+                systemctl --user restart xibo-player.service 2>/dev/null || true
                 status_notify "IP: $IP — Restarting player..." "normal"
             fi
         fi
