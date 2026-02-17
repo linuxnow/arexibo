@@ -10,6 +10,11 @@ implemented mostly in Rust but making use of Qt GUI components, for Linux platfo
 It is currently still incomplete.  Don't expect more complex features to work
 unless tested.
 
+> **Note**: For full kiosk functionality, install the separate
+> [xibo-kiosk](https://github.com/xibo-players/xibo-kiosk) package which provides
+> session management, keyboard shortcuts, and automated setup. The xibo-kiosk
+> package works with multiple Xibo player implementations.
+
 
 ## Installation
 
@@ -35,6 +40,10 @@ EOF
 
 # Install
 sudo dnf install arexibo
+
+# Optional: Install kiosk session scripts (from separate repository)
+# See https://github.com/xibo-players/xibo-kiosk for details
+sudo dnf install xibo-kiosk
 ```
 
 Or install directly from a downloaded RPM:
@@ -48,6 +57,10 @@ sudo dnf install ./arexibo-*.rpm
 A bootable installer ISO is available from the
 [GitHub Releases](https://github.com/linuxnow/arexibo/releases) page.
 This performs an automated Fedora 43 installation with arexibo pre-configured.
+
+> **Note**: The installer also installs the xibo-kiosk package from the 
+> [xibo-kiosk repository](https://github.com/xibo-players/xibo-kiosk) for
+> full kiosk functionality.
 
 ```bash
 # Flash ISO to USB
@@ -71,6 +84,8 @@ Ready-to-boot kiosk images are available from the
 
 - **QCOW2** (x86_64): For VMs (GNOME Boxes, virt-manager, QEMU)
 - **Raw.xz** (x86_64 / aarch64): For flashing to physical hardware
+
+These images include both arexibo and xibo-kiosk packages pre-installed.
 
 Default credentials: `xibo` / `xibo`
 
@@ -198,8 +213,9 @@ services.arexibo.keyFile = config.sops.secrets.arexibo-key.path;
 
 ## Kiosk Keyboard Shortcuts
 
-When running in kiosk mode, the following keyboard shortcuts are available
-(via [keyd](https://github.com/rvaiya/keyd)):
+When using the xibo-kiosk package (available separately from 
+[xibo-kiosk repository](https://github.com/xibo-players/xibo-kiosk)), 
+the following keyboard shortcuts are available via [keyd](https://github.com/rvaiya/keyd):
 
 | Shortcut | Action |
 |----------|--------|
